@@ -3,6 +3,7 @@ import random
 from gtts import gTTS
 import io
 import base64
+import time
 
 # ---------------------------------------------------------
 # 1. 單字資料庫 (包含主要分類與單字)
@@ -83,27 +84,32 @@ WORD_BANK = [
 # 2. 核心功能函數: Base64 HTML 播放器
 # ---------------------------------------------------------
 
-def autoplay_audio(text):
+def get_audio_html(text, unique_key):
     """
-    產生一個 HTML5 audio 標籤並回傳 HTML 字串。
-    使用 Base64 編碼，避免 iOS Safari 對 blob 或 temp file 的快取問題。
+    產生一個 HTML5 audio 標籤。
+    關鍵修正：加入 unique_key 到 HTML id 中，強制瀏覽器將其視為新元件，
+    解決「換題後聲音不更新」的問題。
     """
-    tts = gTTS(text=text, lang='en')
-    fp = io.BytesIO()
-    tts.write_to_fp(fp)
-    fp.seek(0)
-    audio_base64 = base64.b64encode(fp.read()).decode()
-    
-    # 產生 HTML 播放器
-    # 注意: iOS Safari 預設禁止 autoplay，但我們將它設為 controls，讓使用者點擊播放
-    # 為了嘗試自動播放，我們加入 autoplay 屬性，但如果 iOS 擋下來，使用者至少能看到播放控制條點擊
-    audio_html = f"""
-    <audio controls autoplay style="width: 100%;">
-        <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
-        您的瀏覽器不支援播放聲音。
-    </audio>
-    """
-    return audio_html
+    try:
+        tts = gTTS(text=text, lang='en')
+        fp = io.BytesIO()
+        tts.write_to_fp(fp)
+        fp.seek(0)
+        audio_base64 = base64.b64encode(fp.read()).decode()
+        
+        # 使用時間戳記與單字建立唯一 ID
+        player_id = f"audio_{unique_key}_{int(time.time())}"
+        
+        # autoplay 屬性：嘗試自動播放
+        # id 屬性：確保唯一性，防止快取
+        audio_html = f"""
+        <audio id="{player_id}" controls autoplay style="width: 100%;">
+            <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
+        </audio>
+        """
+        return audio_html
+    except Exception as e:
+        return f"<div>語音載入錯誤: {str(e)}</div>"
 
 def safe_rerun():
     try:
@@ -157,18 +163,16 @@ elif st.session_state.game_state == "PLAYING":
     q = q_list[idx]
     
     st.caption(f"進度：第 {idx + 1} 題 / 共 {len(q_list)} 題")
-    
-    # 單字標題
     st.header(q['en'])
     
     # ------------------------------------------------
-    # 關鍵修正：使用 HTML Base64 播放器
+    # 聲音播放區域
     # ------------------------------------------------
-    # 產生音訊 HTML
-    html_player = autoplay_audio(q['en'])
-    # 使用 st.markdown 渲染 HTML，並允許 unsafe_allow_html
+    # 傳入 idx 與單字作為 unique_key，確保每一題的播放器 ID 都不同
+    html_player = get_audio_html(q['en'], f"q{idx}_{q['en']}")
     st.markdown(html_player, unsafe_allow_html=True)
     
+    # 選項產生
     if not st.session_state.options:
         wrong_candidates = [w['zh'] for w in WORD_BANK if w['zh'] != q['zh']]
         opts = random.sample(wrong_candidates, 3) + [q['zh']]
@@ -227,15 +231,15 @@ elif st.session_state.game_state == "FINISH":
 
     if st.session_state.wrong_list:
         st.markdown("### 錯題複習")
-        for w in st.session_state.wrong_list:
+        for i, w in enumerate(st.session_state.wrong_list):
             st.write("---")
             col1, col2 = st.columns([3, 1])
             with col1:
                 st.subheader(w['en'])
                 st.write(w['zh'])
             with col2:
-                # 複習區也使用 HTML 播放器
-                review_html = autoplay_audio(w['en'])
+                # 複習區同樣使用唯一 ID
+                review_html = get_audio_html(w['en'], f"rev_{i}_{w['en']}")
                 st.markdown(review_html, unsafe_allow_html=True)
     
     st.write("---")
