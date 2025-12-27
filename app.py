@@ -5,7 +5,7 @@ import io
 
 # 完整單字庫資料 (依據 PDF 1-19 頁提取)
 WORD_BANK = [
-    # 動物/昆蟲 [cite: 2]
+    # 動物/昆蟲 
     {"en": "animal", "zh": "動物", "cat": "動物/昆蟲"}, {"en": "bear", "zh": "熊", "cat": "動物/昆蟲"},
     {"en": "bee", "zh": "蜜蜂", "cat": "動物/昆蟲"}, {"en": "bird", "zh": "鳥", "cat": "動物/昆蟲"},
     {"en": "butterfly", "zh": "蝴蝶", "cat": "動物/昆蟲"}, {"en": "cat", "zh": "貓", "cat": "動物/昆蟲"},
@@ -19,30 +19,30 @@ WORD_BANK = [
     {"en": "sheep", "zh": "綿羊", "cat": "動物/昆蟲"}, {"en": "snake", "zh": "蛇", "cat": "動物/昆蟲"},
     {"en": "tiger", "zh": "老虎", "cat": "動物/昆蟲"}, {"en": "whale", "zh": "鯨魚", "cat": "動物/昆蟲"},
     {"en": "zebra", "zh": "斑馬", "cat": "動物/昆蟲"},
-    # 衣服配件 [cite: 2, 5]
+    # 衣服配件 
     {"en": "bag", "zh": "袋子", "cat": "衣服配件"}, {"en": "cap", "zh": "棒球帽", "cat": "衣服配件"},
     {"en": "clothes", "zh": "衣服", "cat": "衣服配件"}, {"en": "coat", "zh": "外套", "cat": "衣服配件"},
     {"en": "dress", "zh": "洋裝", "cat": "衣服配件"}, {"en": "glasses", "zh": "眼鏡", "cat": "衣服配件"},
-    {"en": "hat", "zh": "帽子", "cat": "衣服配件"}, {"en": "jacket", "zh": "夾克、外套", "cat": "衣服配件"},
+    {"en": "hat", "zh": "帽子", "cat": "衣服配件"}, {"en": "jacket", "zh": "夾克", "cat": "衣服配件"},
     {"en": "pants", "zh": "長褲", "cat": "衣服配件"}, {"en": "shoes", "zh": "鞋子", "cat": "衣服配件"},
     {"en": "shorts", "zh": "短褲", "cat": "衣服配件"}, {"en": "skirt", "zh": "裙子", "cat": "衣服配件"},
     {"en": "socks", "zh": "襪子", "cat": "衣服配件"}, {"en": "sweater", "zh": "毛衣", "cat": "衣服配件"},
     {"en": "T-shirt", "zh": "T恤", "cat": "衣服配件"}, {"en": "umbrella", "zh": "傘", "cat": "衣服配件"},
-    # 顏色 [cite: 5]
+    # 顏色 
     {"en": "black", "zh": "黑色的", "cat": "顏色"}, {"en": "blue", "zh": "藍色的", "cat": "顏色"},
     {"en": "brown", "zh": "咖啡色的", "cat": "顏色"}, {"en": "gray", "zh": "灰色的", "cat": "顏色"},
     {"en": "green", "zh": "綠色的", "cat": "顏色"}, {"en": "orange", "zh": "橘色的", "cat": "顏色"},
     {"en": "pink", "zh": "粉紅色的", "cat": "顏色"}, {"en": "purple", "zh": "紫色的", "cat": "顏色"},
     {"en": "red", "zh": "紅色的", "cat": "顏色"}, {"en": "white", "zh": "白色的", "cat": "顏色"},
     {"en": "yellow", "zh": "黃色的", "cat": "顏色"},
-    # 家庭 [cite: 5, 8]
+    # 家庭 
     {"en": "aunt", "zh": "阿姨、姑姑、伯母、舅媽", "cat": "家庭"}, {"en": "brother", "zh": "哥哥、弟弟", "cat": "家庭"},
     {"en": "cousin", "zh": "堂兄(弟、姊、妹)", "cat": "家庭"}, {"en": "daughter", "zh": "女兒", "cat": "家庭"},
     {"en": "family", "zh": "家庭、家人", "cat": "家庭"}, {"en": "father", "zh": "爸爸", "cat": "家庭"},
     {"en": "grandfather", "zh": "外公、爺爺", "cat": "家庭"}, {"en": "mother", "zh": "媽媽", "cat": "家庭"},
     {"en": "sister", "zh": "姐姐、妹妹", "cat": "家庭"}, {"en": "son", "zh": "兒子", "cat": "家庭"},
     {"en": "uncle", "zh": "叔叔、舅舅、姑丈、姨丈", "cat": "家庭"},
-    # 食物/飲料 [cite: 8, 11]
+    # 食物/飲料 
     {"en": "apple", "zh": "蘋果", "cat": "食物/飲料"}, {"en": "banana", "zh": "香蕉", "cat": "食物/飲料"},
     {"en": "beef", "zh": "牛肉", "cat": "食物/飲料"}, {"en": "bread", "zh": "麵包", "cat": "食物/飲料"},
     {"en": "cake", "zh": "蛋糕", "cat": "食物/飲料"}, {"en": "candy", "zh": "糖果", "cat": "食物/飲料"},
@@ -53,7 +53,7 @@ WORD_BANK = [
     {"en": "sandwich", "zh": "三明治", "cat": "食物/飲料"}, {"en": "soup", "zh": "湯", "cat": "食物/飲料"},
     {"en": "strawberry", "zh": "草莓", "cat": "食物/飲料"}, {"en": "water", "zh": "水", "cat": "食物/飲料"},
     {"en": "watermelon", "zh": "西瓜", "cat": "食物/飲料"},
-    # 運輸 [cite: 39]
+    # 運輸 
     {"en": "airplane", "zh": "飛機", "cat": "運輸"}, {"en": "bicycle", "zh": "腳踏車", "cat": "運輸"},
     {"en": "bus", "zh": "公車", "cat": "運輸"}, {"en": "car", "zh": "車子", "cat": "運輸"},
     {"en": "motorcycle", "zh": "摩托車", "cat": "運輸"}, {"en": "train", "zh": "火車", "cat": "運輸"},
@@ -63,19 +63,18 @@ WORD_BANK = [
     {"en": "eraser", "zh": "橡皮擦", "cat": "學校"}, {"en": "homework", "zh": "回家作業", "cat": "學校"},
     {"en": "library", "zh": "圖書館", "cat": "學校"}, {"en": "pencil", "zh": "鉛筆", "cat": "學校"},
     {"en": "teacher", "zh": "老師", "cat": "學校"}, {"en": "test", "zh": "考試", "cat": "學校"},
-    # 身體部位 [cite: 21, 24]
+    # 身體部位 
     {"en": "arm", "zh": "手臂", "cat": "身體部位"}, {"en": "ear", "zh": "耳朵", "cat": "身體部位"},
     {"en": "eye", "zh": "眼睛", "cat": "身體部位"}, {"en": "face", "zh": "臉", "cat": "身體部位"},
     {"en": "foot", "zh": "腳", "cat": "身體部位"}, {"en": "hair", "zh": "頭髮", "cat": "身體部位"},
     {"en": "hand", "zh": "手", "cat": "身體部位"}, {"en": "mouth", "zh": "嘴巴", "cat": "身體部位"},
     {"en": "nose", "zh": "鼻子", "cat": "身體部位"}, {"en": "tooth", "zh": "牙齒", "cat": "身體部位"},
-    # 地點/方位 [cite: 27]
+    # 地點/方位 
     {"en": "bank", "zh": "銀行", "cat": "地點/方位"}, {"en": "hospital", "zh": "醫院", "cat": "地點/方位"},
     {"en": "market", "zh": "市場", "cat": "地點/方位"}, {"en": "park", "zh": "公園", "cat": "地點/方位"},
     {"en": "restaurant", "zh": "餐廳", "cat": "地點/方位"}, {"en": "zoo", "zh": "動物園", "cat": "地點/方位"}
 ]
 
-# 跨版本相容的重新整理函數
 def safe_rerun():
     try:
         st.rerun()
@@ -89,24 +88,21 @@ def get_audio(text):
     fp.seek(0)
     return fp
 
-# 初始化狀態
 if 'game_state' not in st.session_state:
     st.session_state.update({
         'game_state': "START", 'score': 0, 'current_idx': 0,
-        'questions': [], 'wrong_list': [], 'options': []
+        'questions': [], 'wrong_list': [], 'options': [], 'ans_checked': False
     })
 
 st.set_page_config(page_title="GEPT Kids 單字練習", page_icon="📝")
 st.title("📝 小學英檢單字王")
 
-# --- 1. 開始畫面 ---
 if st.session_state.game_state == "START":
     cats = sorted(list(set([w['cat'] for w in WORD_BANK])))
     selected = st.selectbox("選擇要練習的主題：", ["全部隨機"] + cats)
     
     if st.button("開始挑戰 (20題)", use_container_width=True):
         pool = WORD_BANK if selected == "全部隨機" else [w for w in WORD_BANK if w['cat'] == selected]
-        # 確保不會抽取超過現有數量的題目
         num_q = min(len(pool), 20)
         st.session_state.questions = random.sample(pool, num_q)
         st.session_state.game_state = "PLAYING"
@@ -114,9 +110,9 @@ if st.session_state.game_state == "START":
         st.session_state.score = 0
         st.session_state.wrong_list = []
         st.session_state.options = []
+        st.session_state.ans_checked = False
         safe_rerun()
 
-# --- 2. 遊戲進行中 ---
 elif st.session_state.game_state == "PLAYING":
     q_list = st.session_state.questions
     idx = st.session_state.current_idx
@@ -125,39 +121,38 @@ elif st.session_state.game_state == "PLAYING":
     st.write(f"進度：{idx + 1} / {len(q_list)}")
     st.header(f"英文單字：{q['en']}")
     
-    # 自動播放發音
+    # 產生並直接朗讀發音 
     audio_data = get_audio(q['en'])
-    st.audio(audio_data, format='audio/mp3')
+    st.audio(audio_data, format='audio/mp3', autoplay=True)
     
-    # 準備選項 (僅在換題時重新計算)
-    if not st.session_state.options or len(st.session_state.options) == 0:
+    if not st.session_state.options:
         wrong_candidates = [w['zh'] for w in WORD_BANK if w['zh'] != q['zh']]
         opts = random.sample(wrong_candidates, 3) + [q['zh']]
         random.shuffle(opts)
         st.session_state.options = opts
 
-    # 顯示按鈕
     for opt in st.session_state.options:
-        if st.button(opt, key=f"btn_{idx}_{opt}", use_container_width=True):
+        if st.button(opt, key=f"btn_{idx}_{opt}", use_container_width=True, disabled=st.session_state.ans_checked):
+            st.session_state.ans_checked = True
             if opt == q['zh']:
                 st.success("✅ 答對了！")
                 st.session_state.score += 5
             else:
                 st.error(f"❌ 答錯了！正確答案是：{q['zh']}")
                 st.session_state.wrong_list.append(q)
-            
-            # 延遲後進入下一題
+            st.rerun()
+
+    # 下一題按鈕放在最下方 
+    if st.session_state.ans_checked:
+        st.write("---")
+        if st.button("下一題", use_container_width=True):
             st.session_state.current_idx += 1
-            st.session_state.options = [] # 清空選項供下一題使用
-            
+            st.session_state.options = []
+            st.session_state.ans_checked = False
             if st.session_state.current_idx >= len(q_list):
                 st.session_state.game_state = "FINISH"
-            
-            # 使用按鈕觸發重新渲染
-            if st.button("點擊進入下一題" if st.session_state.game_state == "PLAYING" else "查看結果"):
-                safe_rerun()
+            safe_rerun()
 
-# --- 3. 結束與複習 ---
 elif st.session_state.game_state == "FINISH":
     st.balloons()
     st.header("🏁 挑戰結束！")
@@ -170,9 +165,7 @@ elif st.session_state.game_state == "FINISH":
             col1.write(f"**{w['en']}** : {w['zh']}")
             if col2.button("🔊", key=f"rev_{w['en']}"):
                 st.audio(get_audio(w['en']), autoplay=True)
-    else:
-        st.success("太強了！完全沒有錯題！")
-        
+    
     if st.button("回首頁重新開始", use_container_width=True):
         st.session_state.game_state = "START"
         safe_rerun()
