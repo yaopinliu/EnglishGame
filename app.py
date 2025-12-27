@@ -166,6 +166,7 @@ def play_audio_js(text, key_suffix="", button_text="🔊 點擊發音"):
             {button_text}
         </button>
         <style>
+            /* 按鈕樣式 */
             .play-btn {{
                 background-color: #4CAF50; border: none; color: white;
                 padding: 10px 16px; text-align: center; text-decoration: none;
@@ -199,7 +200,7 @@ def create_cloze_word(word):
 # ---------------------------------------------------------
 if 'mode' not in st.session_state: st.session_state.mode = "MAIN_MENU"
 
-# 累計歷史數據 (簡單版)
+# 累計歷史數據
 if 'total_correct' not in st.session_state: st.session_state.total_correct = 0
 if 'total_questions' not in st.session_state: st.session_state.total_questions = 0
 
@@ -208,30 +209,40 @@ if 'game_state' not in st.session_state:
         'game_state': "START", 
         'score': 0, 'current_idx': 0, 'questions': [], 
         'wrong_list': [], 'options': [], 
-        'ans_checked': False, 'selected_opt': None
+        'ans_checked': False, 'selected_opt': None,
+        'user_input': "" # 克漏字輸入暫存
     })
 
-# CSS 縮減間距與優化手機排版
+# ---------------------------------------------------------
+# 4. 版面調整 CSS (解決左上角遮擋與按鈕樣式)
+# ---------------------------------------------------------
 st.markdown("""
 <style>
-    .block-container { padding-top: 20px; padding-bottom: 20px; }
-    h1 { font-size: 1.5rem; margin-bottom: 0px; }
-    h2 { font-size: 1.2rem; }
+    /* 增加頂部間距，解決按鈕被遮擋問題 */
+    .block-container { 
+        padding-top: 4rem; 
+        padding-bottom: 2rem; 
+    }
+    /* 調整標題大小 */
+    h1 { font-size: 1.5rem !important; margin-bottom: 0.5rem !important; }
+    h2 { font-size: 1.2rem !important; }
+    /* 調整按鈕高度 */
     .stButton button { width: 100%; height: 50px; font-size: 18px; margin-top: 0px; }
+    /* 減少垂直間距 */
     div[data-testid="stVerticalBlock"] > div { gap: 0.5rem; }
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 4. 主程式邏輯
+# 5. 主程式邏輯
 # ---------------------------------------------------------
 
 # --- 模式 A: 聽力測驗 (Listening) ---
 def run_listening_mode():
-    # 頂部導航與資訊列
     col_back, col_info = st.columns([1, 2])
     with col_back:
-        if st.button("⬅ 回主單", key="back_btn_lis"):
+        # 回主選單按鈕
+        if st.button("⬅ 回主選單", key="back_btn_lis"):
             st.session_state.mode = "MAIN_MENU"
             st.session_state.game_state = "START"
             safe_rerun()
@@ -258,7 +269,7 @@ def run_listening_mode():
     elif st.session_state.game_state == "PLAYING":
         q = st.session_state.questions[st.session_state.current_idx]
         
-        # 題目區：單字與發音並排
+        # 題目區：單字與發音
         c1, c2 = st.columns([2, 1])
         with c1:
             st.markdown(f"<h2 style='text-align: center; color: #1E88E5;'>{q['en']}</h2>", unsafe_allow_html=True)
@@ -272,10 +283,8 @@ def run_listening_mode():
             random.shuffle(opts)
             st.session_state.options = opts
 
-        # 選項區：2x2 排列
+        # 選項區 (2x2)
         opts = st.session_state.options
-        
-        # 建立兩個 row，每個 row 兩個 column
         for i in range(0, 4, 2):
             col_a, col_b = st.columns(2)
             with col_a:
@@ -288,7 +297,7 @@ def run_listening_mode():
                     if st.button(opt_text, key=f"opt_{i+1}", use_container_width=True, disabled=st.session_state.ans_checked):
                         check_answer(opt_text, q, q['zh'])
 
-        # 結果回饋區 (置底)
+        # 結果回饋區
         if st.session_state.ans_checked:
             st.write("---")
             if st.session_state.selected_opt == q['zh']:
@@ -302,11 +311,11 @@ def run_listening_mode():
     elif st.session_state.game_state == "FINISH":
         show_results()
 
-# --- 模式 B: 克漏字測驗 (Cloze) ---
+# --- 模式 B: 克漏字測驗 (Cloze - 填字版) ---
 def run_cloze_mode():
     col_back, col_info = st.columns([1, 2])
     with col_back:
-        if st.button("⬅ 回主單", key="back_btn_cloze"):
+        if st.button("⬅ 回主選單", key="back_btn_cloze"):
             st.session_state.mode = "MAIN_MENU"
             st.session_state.game_state = "START"
             safe_rerun()
@@ -325,55 +334,62 @@ def run_cloze_mode():
             st.session_state.current_idx = 0
             st.session_state.score = 0
             st.session_state.wrong_list = []
-            st.session_state.options = []
             st.session_state.ans_checked = False
-            st.session_state.selected_opt = None
+            st.session_state.user_input = ""
             safe_rerun()
 
     elif st.session_state.game_state == "PLAYING":
         q = st.session_state.questions[st.session_state.current_idx]
         
-        # 題目區
-        st.caption(f"提示：{q['zh']}")
-        
+        # 產生挖空單字
         cloze_key = f"cloze_word_{st.session_state.current_idx}"
         if cloze_key not in st.session_state:
             st.session_state[cloze_key] = create_cloze_word(q['en'])
+
+        # 顯示題目
+        st.caption(f"中文提示：{q['zh']}")
+        
+        # 使用 form 來處理輸入，方便按 Enter 提交
+        with st.form(key=f"cloze_form_{st.session_state.current_idx}"):
+            c1, c2 = st.columns([3, 1])
+            with c1:
+                st.markdown(f"<h2 style='text-align: center; letter-spacing: 2px;'>{st.session_state[cloze_key]}</h2>", unsafe_allow_html=True)
+            with c2:
+                # 這裡不直接播放，避免 iOS 表單提交問題，只顯示靜態文字
+                st.caption("請拼出完整單字")
+
+            # 輸入框
+            user_ans = st.text_input("請輸入完整單字：", value="", disabled=st.session_state.ans_checked)
             
-        c1, c2 = st.columns([3, 1])
-        with c1:
-             st.markdown(f"<h2 style='text-align: center; letter-spacing: 2px;'>{st.session_state[cloze_key]}</h2>", unsafe_allow_html=True)
-        with c2:
-            play_audio_js(q['en'], key_suffix=f"cloze_{st.session_state.current_idx}", button_text="🔊")
+            # 提交按鈕
+            submit_btn = st.form_submit_button("提交答案", disabled=st.session_state.ans_checked)
+        
+        # 輔助發音按鈕 (放在 form 外面比較安全)
+        play_audio_js(q['en'], key_suffix=f"cloze_{st.session_state.current_idx}", button_text="🔊 聽提示")
 
-        if not st.session_state.options:
-            wrong = [w['en'] for w in WORD_BANK if w['en'] != q['en']]
-            if len(wrong) < 3: wrong = wrong * 3
-            opts = random.sample(wrong, 3) + [q['en']]
-            random.shuffle(opts)
-            st.session_state.options = opts
-
-        # 選項區：2x2 排列
-        opts = st.session_state.options
-        for i in range(0, 4, 2):
-            col_a, col_b = st.columns(2)
-            with col_a:
-                opt_text = opts[i]
-                if st.button(opt_text, key=f"opt_cloze_{i}", use_container_width=True, disabled=st.session_state.ans_checked):
-                    check_answer(opt_text, q, q['en'])
-            with col_b:
-                if i+1 < 4:
-                    opt_text = opts[i+1]
-                    if st.button(opt_text, key=f"opt_cloze_{i+1}", use_container_width=True, disabled=st.session_state.ans_checked):
-                        check_answer(opt_text, q, q['en'])
+        # 處理提交邏輯
+        if submit_btn and not st.session_state.ans_checked:
+            st.session_state.ans_checked = True
+            st.session_state.user_input = user_ans
+            st.session_state.total_questions += 1
+            
+            # 判斷對錯 (忽略大小寫與前後空白)
+            if user_ans.strip().lower() == q['en'].lower():
+                st.session_state.score += 5
+                st.session_state.total_correct += 1
+                st.session_state.is_correct = True
+            else:
+                st.session_state.wrong_list.append(q)
+                st.session_state.is_correct = False
+            safe_rerun()
 
         # 結果回饋區
         if st.session_state.ans_checked:
             st.write("---")
-            if st.session_state.selected_opt == q['en']:
-                st.success("✅ 正確！")
+            if st.session_state.is_correct:
+                st.success(f"✅ 正確！答案是：{q['en']}")
             else:
-                st.error(f"❌ 錯誤！正確是：{q['en']}")
+                st.error(f"❌ 錯誤！正確答案是：{q['en']}")
             
             if st.button("下一題 ➡", use_container_width=True, type="primary"):
                 # 清除舊的暫存
@@ -400,6 +416,7 @@ def next_question():
     st.session_state.current_idx += 1
     st.session_state.ans_checked = False
     st.session_state.options = []
+    st.session_state.user_input = "" # 清空輸入框
     if st.session_state.current_idx >= len(st.session_state.questions):
         st.session_state.game_state = "FINISH"
     safe_rerun()
@@ -444,7 +461,7 @@ if st.session_state.mode == "MAIN_MENU":
             st.session_state.game_state = "START"
             safe_rerun()
     with col2:
-        if st.button("🔤 克漏字\n(看中拼英)", use_container_width=True):
+        if st.button("🔤 克漏字\n(填空練習)", use_container_width=True):
             st.session_state.mode = "CLOZE"
             st.session_state.game_state = "START"
             safe_rerun()
