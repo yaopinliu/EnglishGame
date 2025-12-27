@@ -11,15 +11,62 @@ import pandas as pd
 # 1. 完整單字資料庫 (整合 GEPT Kids 核心單字)
 # ---------------------------------------------------------
 WORD_BANK = [
-    # --- 這裡放入您之前的 1200 單字庫內容 (為了長度縮減，此處省略重複列表，請保留您原本的列表) ---
+    # --- 動物/昆蟲 ---
     {"en": "animal", "zh": "動物", "cat": "動物/昆蟲"}, {"en": "bear", "zh": "熊", "cat": "動物/昆蟲"},
+    {"en": "bee", "zh": "蜜蜂", "cat": "動物/昆蟲"}, {"en": "bird", "zh": "鳥", "cat": "動物/昆蟲"},
+    {"en": "butterfly", "zh": "蝴蝶", "cat": "動物/昆蟲"}, {"en": "cat", "zh": "貓", "cat": "動物/昆蟲"},
+    {"en": "chicken", "zh": "雞", "cat": "動物/昆蟲"}, {"en": "cow", "zh": "乳牛", "cat": "動物/昆蟲"},
+    {"en": "dog", "zh": "狗", "cat": "動物/昆蟲"}, {"en": "duck", "zh": "鴨子", "cat": "動物/昆蟲"},
+    {"en": "elephant", "zh": "大象", "cat": "動物/昆蟲"}, {"en": "fish", "zh": "魚", "cat": "動物/昆蟲"},
+    {"en": "frog", "zh": "青蛙", "cat": "動物/昆蟲"}, {"en": "hippo", "zh": "河馬", "cat": "動物/昆蟲"},
+    {"en": "horse", "zh": "馬", "cat": "動物/昆蟲"}, {"en": "koala", "zh": "無尾熊", "cat": "動物/昆蟲"},
+    {"en": "lion", "zh": "獅子", "cat": "動物/昆蟲"}, {"en": "monkey", "zh": "猴子", "cat": "動物/昆蟲"},
+    {"en": "mouse", "zh": "老鼠", "cat": "動物/昆蟲"}, {"en": "panda", "zh": "大貓熊", "cat": "動物/昆蟲"},
+    {"en": "pet", "zh": "寵物", "cat": "動物/昆蟲"}, {"en": "pig", "zh": "豬", "cat": "動物/昆蟲"},
+    {"en": "rabbit", "zh": "兔子", "cat": "動物/昆蟲"}, {"en": "sheep", "zh": "綿羊", "cat": "動物/昆蟲"},
+    {"en": "snake", "zh": "蛇", "cat": "動物/昆蟲"}, {"en": "spider", "zh": "蜘蛛", "cat": "動物/昆蟲"},
+    {"en": "tiger", "zh": "老虎", "cat": "動物/昆蟲"}, {"en": "turtle", "zh": "烏龜", "cat": "動物/昆蟲"},
+    {"en": "whale", "zh": "鯨魚", "cat": "動物/昆蟲"}, {"en": "zebra", "zh": "斑馬", "cat": "動物/昆蟲"},
+    # --- 衣服配件 ---
+    {"en": "bag", "zh": "袋子", "cat": "衣服配件"}, {"en": "cap", "zh": "棒球帽", "cat": "衣服配件"},
+    {"en": "clothes", "zh": "衣服", "cat": "衣服配件"}, {"en": "coat", "zh": "外套", "cat": "衣服配件"},
+    {"en": "dress", "zh": "洋裝", "cat": "衣服配件"}, {"en": "glasses", "zh": "眼鏡", "cat": "衣服配件"},
+    {"en": "hat", "zh": "帽子", "cat": "衣服配件"}, {"en": "jacket", "zh": "夾克", "cat": "衣服配件"},
+    {"en": "pants", "zh": "長褲", "cat": "衣服配件"}, {"en": "shirt", "zh": "襯衫", "cat": "衣服配件"},
+    {"en": "shoes", "zh": "鞋子", "cat": "衣服配件"}, {"en": "socks", "zh": "襪子", "cat": "衣服配件"},
+    {"en": "sweater", "zh": "毛衣", "cat": "衣服配件"}, {"en": "T-shirt", "zh": "T恤", "cat": "衣服配件"},
+    {"en": "umbrella", "zh": "傘", "cat": "衣服配件"},
+    # --- 顏色 ---
+    {"en": "black", "zh": "黑色的", "cat": "顏色"}, {"en": "blue", "zh": "藍色的", "cat": "顏色"},
+    {"en": "brown", "zh": "咖啡色的", "cat": "顏色"}, {"en": "gray", "zh": "灰色的", "cat": "顏色"},
+    {"en": "green", "zh": "綠色的", "cat": "顏色"}, {"en": "orange", "zh": "橘色的", "cat": "顏色"},
+    {"en": "pink", "zh": "粉紅色的", "cat": "顏色"}, {"en": "purple", "zh": "紫色的", "cat": "顏色"},
+    {"en": "red", "zh": "紅色的", "cat": "顏色"}, {"en": "white", "zh": "白色的", "cat": "顏色"},
+    {"en": "yellow", "zh": "黃色的", "cat": "顏色"},
+    # --- 家庭 ---
+    {"en": "aunt", "zh": "阿姨/姑姑", "cat": "家庭"}, {"en": "brother", "zh": "哥哥/弟弟", "cat": "家庭"},
+    {"en": "dad", "zh": "爸爸", "cat": "家庭"}, {"en": "daughter", "zh": "女兒", "cat": "家庭"},
+    {"en": "family", "zh": "家庭/家人", "cat": "家庭"}, {"en": "father", "zh": "父親", "cat": "家庭"},
+    {"en": "mother", "zh": "母親", "cat": "家庭"}, {"en": "sister", "zh": "姐姐/妹妹", "cat": "家庭"},
+    {"en": "son", "zh": "兒子", "cat": "家庭"}, {"en": "uncle", "zh": "叔叔/舅舅", "cat": "家庭"},
+    # --- 食物/飲料 ---
     {"en": "apple", "zh": "蘋果", "cat": "食物/飲料"}, {"en": "banana", "zh": "香蕉", "cat": "食物/飲料"},
-    {"en": "car", "zh": "汽車", "cat": "運輸"}, {"en": "bus", "zh": "公車", "cat": "運輸"},
-    {"en": "book", "zh": "書本", "cat": "學校"}, {"en": "teacher", "zh": "老師", "cat": "學校"},
-    {"en": "eye", "zh": "眼睛", "cat": "身體部位"}, {"en": "hand", "zh": "手", "cat": "身體部位"},
-    {"en": "run", "zh": "跑", "cat": "動作"}, {"en": "jump", "zh": "跳", "cat": "動作"}
-] # 請確保將您之前的完整 WORD_BANK 貼回這裡
-
+    {"en": "bread", "zh": "麵包", "cat": "食物/飲料"}, {"en": "cake", "zh": "蛋糕", "cat": "食物/飲料"},
+    {"en": "candy", "zh": "糖果", "cat": "食物/飲料"}, {"en": "chicken", "zh": "雞肉", "cat": "食物/飲料"},
+    {"en": "chocolate", "zh": "巧克力", "cat": "食物/飲料"}, {"en": "coffee", "zh": "咖啡", "cat": "食物/飲料"},
+    {"en": "coke", "zh": "可樂", "cat": "食物/飲料"}, {"en": "dumpling", "zh": "水餃", "cat": "食物/飲料"},
+    {"en": "egg", "zh": "蛋", "cat": "食物/飲料"}, {"en": "fruit", "zh": "水果", "cat": "食物/飲料"},
+    {"en": "hamburger", "zh": "漢堡", "cat": "食物/飲料"}, {"en": "ice cream", "zh": "冰淇淋", "cat": "食物/飲料"},
+    {"en": "juice", "zh": "果汁", "cat": "食物/飲料"}, {"en": "milk", "zh": "牛奶", "cat": "食物/飲料"},
+    {"en": "noodles", "zh": "麵", "cat": "食物/飲料"}, {"en": "pizza", "zh": "披薩", "cat": "食物/飲料"},
+    {"en": "rice", "zh": "米飯", "cat": "食物/飲料"}, {"en": "sandwich", "zh": "三明治", "cat": "食物/飲料"},
+    {"en": "soup", "zh": "湯", "cat": "食物/飲料"}, {"en": "strawberry", "zh": "草莓", "cat": "食物/飲料"},
+    {"en": "water", "zh": "水", "cat": "食物/飲料"},
+    # --- 學校 ---
+    {"en": "book", "zh": "書本", "cat": "學校"}, {"en": "classroom", "zh": "教室", "cat": "學校"},
+    {"en": "eraser", "zh": "橡皮擦", "cat": "學校"}, {"en": "homework", "zh": "作業", "cat": "學校"},
+    {"en": "pencil", "zh": "鉛筆", "cat": "學校"}, {"en": "teacher", "zh": "老師", "cat": "學校"}
+]
 # ---------------------------------------------------------
 # 2. 核心功能: 語音與工具
 # ---------------------------------------------------------
@@ -181,6 +228,7 @@ elif st.session_state.mode == "CLOZE":
 # --- 統計模式 ---
 elif st.session_state.mode == "STATS":
     run_stats_mode()
+
 
 
 
