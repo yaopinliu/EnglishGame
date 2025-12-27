@@ -247,3 +247,4 @@ elif st.session_state.game_state == "FINISH":
         st.session_state.game_state = "START"
         safe_rerun()
 
+
