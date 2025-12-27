@@ -6,7 +6,7 @@ import base64
 import time
 
 # ---------------------------------------------------------
-# 1. 單字資料庫 (包含主要分類與單字)
+# 1. 單字資料庫 (內容不變)
 # ---------------------------------------------------------
 WORD_BANK = [
     # --- 動物/昆蟲 ---
@@ -81,32 +81,50 @@ WORD_BANK = [
 ]
 
 # ---------------------------------------------------------
-# 2. 核心功能函數: Base64 HTML 播放器
+# 2. 核心功能函數: 修正版
 # ---------------------------------------------------------
 
-def get_audio_html(text, unique_key):
+def get_audio_html(text, unique_key, autoplay_switch=True):
     """
     產生一個 HTML5 audio 標籤。
-    關鍵修正：加入 unique_key 到 HTML id 中，強制瀏覽器將其視為新元件，
-    解決「換題後聲音不更新」的問題。
+    新增 autoplay_switch 參數：控制是否自動播放。
     """
     try:
+        # 產生聲音資料
         tts = gTTS(text=text, lang='en')
         fp = io.BytesIO()
         tts.write_to_fp(fp)
         fp.seek(0)
         audio_base64 = base64.b64encode(fp.read()).decode()
         
-        # 使用時間戳記與單字建立唯一 ID
+        # 產生唯一 ID
         player_id = f"audio_{unique_key}_{int(time.time())}"
         
-        # autoplay 屬性：嘗試自動播放
-        # id 屬性：確保唯一性，防止快取
+        # 決定是否加入 autoplay 屬性
+        autoplay_attr = "autoplay" if autoplay_switch else ""
+        
+        # HTML 結構 (加入 onerror 處理與 JS 輔助)
         audio_html = f"""
-        <audio id="{player_id}" controls autoplay style="width: 100%;">
+        <audio id="{player_id}" controls {autoplay_attr} style="width: 100%;">
             <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
+            您的瀏覽器不支援音訊播放。
         </audio>
         """
+        
+        # 如果需要自動播放，為了確保在換題時真的會播，
+        # 我們加入一段 JS 來 "推" 它一把 (針對某些頑固的瀏覽器)
+        if autoplay_switch:
+            audio_html += f"""
+            <script>
+                var audio = document.getElementById("{player_id}");
+                if (audio) {{
+                    audio.play().catch(function(error) {{
+                        console.log("Autoplay blocked: " + error);
+                    }});
+                }}
+            </script>
+            """
+            
         return audio_html
     except Exception as e:
         return f"<div>語音載入錯誤: {str(e)}</div>"
@@ -166,10 +184,10 @@ elif st.session_state.game_state == "PLAYING":
     st.header(q['en'])
     
     # ------------------------------------------------
-    # 聲音播放區域
+    # 聲音播放區域 (重點修正)
     # ------------------------------------------------
-    # 傳入 idx 與單字作為 unique_key，確保每一題的播放器 ID 都不同
-    html_player = get_audio_html(q['en'], f"q{idx}_{q['en']}")
+    # 在遊戲進行中，我們希望自動播放，所以 autoplay_switch=True
+    html_player = get_audio_html(q['en'], f"q{idx}_{q['en']}", autoplay_switch=True)
     st.markdown(html_player, unsafe_allow_html=True)
     
     # 選項產生
@@ -231,6 +249,7 @@ elif st.session_state.game_state == "FINISH":
 
     if st.session_state.wrong_list:
         st.markdown("### 錯題複習")
+        st.info("點擊播放器按鈕聆聽發音") # 提示使用者手動播放
         for i, w in enumerate(st.session_state.wrong_list):
             st.write("---")
             col1, col2 = st.columns([3, 1])
@@ -238,8 +257,12 @@ elif st.session_state.game_state == "FINISH":
                 st.subheader(w['en'])
                 st.write(w['zh'])
             with col2:
-                # 複習區同樣使用唯一 ID
-                review_html = get_audio_html(w['en'], f"rev_{i}_{w['en']}")
+                # ------------------------------------------------
+                # 複習區域 (重點修正)
+                # ------------------------------------------------
+                # 在列表顯示時，絕對不能自動播放，否則會全部一起響
+                # 設定 autoplay_switch=False
+                review_html = get_audio_html(w['en'], f"rev_{i}_{w['en']}", autoplay_switch=False)
                 st.markdown(review_html, unsafe_allow_html=True)
     
     st.write("---")
