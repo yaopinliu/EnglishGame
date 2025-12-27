@@ -83,7 +83,6 @@ WORD_BANK = [
 # 2. 核心功能函數
 # ---------------------------------------------------------
 
-# 取得真人發音音檔
 def get_audio(text):
     tts = gTTS(text=text, lang='en')
     fp = io.BytesIO()
@@ -91,7 +90,6 @@ def get_audio(text):
     fp.seek(0)
     return fp
 
-# 安全重整頁面
 def safe_rerun():
     try:
         st.rerun()
@@ -109,15 +107,15 @@ if 'game_state' not in st.session_state:
         'questions': [], 
         'wrong_list': [], 
         'options': [], 
-        'ans_checked': False, # 是否已回答
-        'selected_opt': None  # 使用者選了哪個答案
+        'ans_checked': False, 
+        'selected_opt': None
     })
 
 # ---------------------------------------------------------
 # 4. 介面與邏輯
 # ---------------------------------------------------------
 st.set_page_config(page_title="GEPT Kids 單字練習", page_icon="📝")
-st.title("📝 小學英檢單字王")
+st.title("小學英檢單字王")  # 移除了 emoji
 
 # --- 階段 A: 開始選單 ---
 if st.session_state.game_state == "START":
@@ -125,13 +123,9 @@ if st.session_state.game_state == "START":
     selected = st.selectbox("請選擇練習主題：", ["全部隨機"] + cats)
     
     if st.button("開始挑戰 (20題)", use_container_width=True):
-        # 篩選題目
         pool = WORD_BANK if selected == "全部隨機" else [w for w in WORD_BANK if w['cat'] == selected]
-        # 隨機抽取 20 題 (若不足則全取)
         num_q = min(len(pool), 20)
         st.session_state.questions = random.sample(pool, num_q)
-        
-        # 重置遊戲狀態
         st.session_state.game_state = "PLAYING"
         st.session_state.current_idx = 0
         st.session_state.score = 0
@@ -147,91 +141,71 @@ elif st.session_state.game_state == "PLAYING":
     idx = st.session_state.current_idx
     q = q_list[idx]
     
-    # 顯示進度
     st.caption(f"進度：第 {idx + 1} 題 / 共 {len(q_list)} 題")
     
-    # 顯示英文單字
-    st.header(f"🔤 {q['en']}")
+    # 修改：標題不帶任何圖示
+    st.header(q['en'])
     
-    # 自動播放發音 (Autoplay)
+    # 自動播放發音
     audio_data = get_audio(q['en'])
     st.audio(audio_data, format='audio/mp3', autoplay=True)
     
-    # 初始化選項 (只在第一次進入該題時執行)
     if not st.session_state.options:
         wrong_candidates = [w['zh'] for w in WORD_BANK if w['zh'] != q['zh']]
-        # 產生 1 個正確 + 3 個錯誤
         opts = random.sample(wrong_candidates, 3) + [q['zh']]
         random.shuffle(opts)
         st.session_state.options = opts
 
     # === 選項顯示區域 ===
-    
-    # 狀況 1: 還沒回答 -> 顯示可點擊的按鈕
     if not st.session_state.ans_checked:
         st.subheader("請選擇正確意思：")
         for opt in st.session_state.options:
-            # 點擊按鈕後，記錄選擇並重新整理
             if st.button(opt, use_container_width=True):
                 st.session_state.selected_opt = opt
                 st.session_state.ans_checked = True
-                
-                # 檢查對錯
                 if opt == q['zh']:
                     st.session_state.score += 5
                 else:
                     st.session_state.wrong_list.append(q)
                 safe_rerun()
 
-    # 狀況 2: 已經回答 -> 顯示彩色結果 (綠色/紅色)
     else:
         st.subheader("答案核對：")
         for opt in st.session_state.options:
-            # 如果是正確答案 -> 綠色
             if opt == q['zh']:
-                st.success(f"✅ {opt} (正確答案)")
-            # 如果是使用者選錯的 -> 紅色
+                st.success(f"{opt} (正確答案)")
             elif opt == st.session_state.selected_opt:
-                st.error(f"❌ {opt} (您的選擇)")
-            # 其他選項 -> 灰色(不重要)
+                st.error(f"{opt} (您的選擇)")
             else:
-                st.info(f"⚪ {opt}")
+                st.info(opt)
 
-        # 下一題按鈕 (置底)
-        st.write("") # 空行
-        st.write("---") # 分隔線
-        if st.button("下一題 ➡", use_container_width=True, type="primary"):
+        st.write("") 
+        st.write("---") 
+        if st.button("下一題", use_container_width=True, type="primary"):
             st.session_state.current_idx += 1
-            st.session_state.options = []     # 清空選項
+            st.session_state.options = []
             st.session_state.ans_checked = False
             st.session_state.selected_opt = None
-            
-            # 檢查是否結束
             if st.session_state.current_idx >= len(q_list):
                 st.session_state.game_state = "FINISH"
-            
             safe_rerun()
 
 # --- 階段 C: 結算畫面 ---
 elif st.session_state.game_state == "FINISH":
     st.balloons()
-    st.header("🏆 挑戰結束！")
+    st.header("挑戰結束！") # 移除了 emoji
     
-    # 分數顯示
-    final_score = st.session_state.score
-    st.metric("最終得分", f"{final_score} 分")
+    st.metric("最終得分", f"{st.session_state.score} 分")
     
-    # 評語
-    if final_score == 100:
-        st.success("太厲害了！全部答對！🎉")
-    elif final_score >= 80:
-        st.info("很棒喔！繼續保持！💪")
+    if st.session_state.score == 100:
+        st.success("太厲害了！全部答對！")
+    elif st.session_state.score >= 80:
+        st.info("很棒喔！繼續保持！")
     else:
-        st.warning("再接再厲，多練習幾次會更強！🔥")
+        st.warning("再接再厲，多練習幾次會更強！")
 
-    # 錯題複習區
     if st.session_state.wrong_list:
-        st.markdown("### 📖 錯題複習 (點擊喇叭聽發音)")
+        st.markdown("### 錯題複習") # 移除了 emoji
         for w in st.session_state.wrong_list:
             col1, col2 = st.columns([3, 1])
             with col1:
@@ -244,3 +218,4 @@ elif st.session_state.game_state == "FINISH":
     if st.button("回首頁重新開始", use_container_width=True):
         st.session_state.game_state = "START"
         safe_rerun()
+
