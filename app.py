@@ -1,7 +1,8 @@
 import streamlit as st
 import random
 from gtts import gTTS
-import io
+import os
+import time
 
 # ---------------------------------------------------------
 # 1. 單字資料庫
@@ -82,12 +83,27 @@ WORD_BANK = [
 # 2. 核心功能函數
 # ---------------------------------------------------------
 
-def get_audio(text):
-    tts = gTTS(text=text, lang='en')
-    fp = io.BytesIO()
-    tts.write_to_fp(fp)
-    fp.seek(0)
-    return fp
+def get_audio_file(text):
+    """
+    產生一個暫存的 mp3 檔案並回傳路徑與二進位資料。
+    iOS Safari 對於動態 stream 的支援有時不穩，
+    寫入檔案再讀取通常比較安全。
+    """
+    try:
+        tts = gTTS(text=text, lang='en')
+        # 建立唯一的檔名避免快取衝突
+        filename = f"temp_audio_{random.randint(1000, 9999)}.mp3"
+        tts.save(filename)
+        
+        with open(filename, "rb") as f:
+            data = f.read()
+            
+        # 讀取完畢後刪除，或保留給本次 request 使用
+        # 為了簡單起見，這裡不立即刪除，Streamlit 重啟會清空
+        return data
+    except Exception as e:
+        st.error(f"語音生成失敗: {e}")
+        return None
 
 def safe_rerun():
     try:
@@ -107,7 +123,8 @@ if 'game_state' not in st.session_state:
         'wrong_list': [], 
         'options': [], 
         'ans_checked': False, 
-        'selected_opt': None
+        'selected_opt': None,
+        'audio_cache': {} # 快取音檔避免重複生成
     })
 
 # ---------------------------------------------------------
@@ -132,6 +149,7 @@ if st.session_state.game_state == "START":
         st.session_state.options = []
         st.session_state.ans_checked = False
         st.session_state.selected_opt = None
+        st.session_state.audio_cache = {} # 清空快取
         safe_rerun()
 
 # --- 階段 B: 遊戲進行中 ---
@@ -142,15 +160,26 @@ elif st.session_state.game_state == "PLAYING":
     
     st.caption(f"進度：第 {idx + 1} 題 / 共 {len(q_list)} 題")
     
-    # 標題 (無圖示)
+    # 標題
     st.header(q['en'])
     
-    # 重要修改：針對 iOS 的播放按鈕
-    # 不自動播放，而是顯示一個大大的按鈕讓使用者點擊
-    st.write("🔊 點擊聽發音：")
-    if st.button("播放單字聲音", key=f"play_{idx}"):
-        audio_data = get_audio(q['en'])
-        st.audio(audio_data, format='audio/mp3', autoplay=True)
+    # iOS 友善的播放機制
+    # 使用 container 來區隔，確保重新整理時佈局穩定
+    audio_container = st.container()
+    
+    # 預先生成音檔 (如果還沒快取)
+    if q['en'] not in st.session_state.audio_cache:
+        st.session_state.audio_cache[q['en']] = get_audio_file(q['en'])
+    
+    audio_bytes = st.session_state.audio_cache[q['en']]
+
+    # 顯示播放按鈕 (手動播放)
+    # 不使用 autoplay=True，因為 iOS 會阻擋
+    # 讓使用者點擊播放器本身
+    if audio_bytes:
+        st.audio(audio_bytes, format='audio/mp3')
+    else:
+        st.warning("無法載入語音")
     
     if not st.session_state.options:
         wrong_candidates = [w['zh'] for w in WORD_BANK if w['zh'] != q['zh']]
@@ -215,9 +244,13 @@ elif st.session_state.game_state == "FINISH":
             with col1:
                 st.write(f"**{w['en']}** : {w['zh']}")
             with col2:
-                # 這裡的播放按鈕同樣需要是使用者觸發
-                if st.button("🔊", key=f"rev_{w['en']}"):
-                    st.audio(get_audio(w['en']), autoplay=True)
+                # 這裡直接用 st.audio 顯示播放器，讓使用者點擊播放
+                if w['en'] not in st.session_state.audio_cache:
+                     st.session_state.audio_cache[w['en']] = get_audio_file(w['en'])
+                
+                aud = st.session_state.audio_cache.get(w['en'])
+                if aud:
+                    st.audio(aud, format='audio/mp3')
     
     st.write("---")
     if st.button("回首頁重新開始", use_container_width=True):
