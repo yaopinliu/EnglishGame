@@ -3,10 +3,10 @@ import random
 from gtts import gTTS
 import io
 import base64
-import time
+import streamlit.components.v1 as components
 
 # ---------------------------------------------------------
-# 1. 單字資料庫 (內容不變)
+# 1. 單字資料庫
 # ---------------------------------------------------------
 WORD_BANK = [
     # --- 動物/昆蟲 ---
@@ -81,53 +81,78 @@ WORD_BANK = [
 ]
 
 # ---------------------------------------------------------
-# 2. 核心功能函數: 修正版
+# 2. 核心功能: JS Audio Player
 # ---------------------------------------------------------
 
-def get_audio_html(text, unique_key, autoplay_switch=True):
+def get_audio_base64(text):
+    """將文字轉為 base64 音訊資料"""
+    tts = gTTS(text=text, lang='en')
+    fp = io.BytesIO()
+    tts.write_to_fp(fp)
+    fp.seek(0)
+    return base64.b64encode(fp.read()).decode()
+
+def play_audio_js(text, key_suffix=""):
     """
-    產生一個 HTML5 audio 標籤。
-    新增 autoplay_switch 參數：控制是否自動播放。
+    產生一個不可見的 HTML 元素，並注入 JavaScript 來播放聲音。
+    這是繞過 iOS Safari 自動播放限制最有效的方法之一。
     """
-    try:
-        # 產生聲音資料
-        tts = gTTS(text=text, lang='en')
-        fp = io.BytesIO()
-        tts.write_to_fp(fp)
-        fp.seek(0)
-        audio_base64 = base64.b64encode(fp.read()).decode()
-        
-        # 產生唯一 ID
-        player_id = f"audio_{unique_key}_{int(time.time())}"
-        
-        # 決定是否加入 autoplay 屬性
-        autoplay_attr = "autoplay" if autoplay_switch else ""
-        
-        # HTML 結構 (加入 onerror 處理與 JS 輔助)
-        audio_html = f"""
-        <audio id="{player_id}" controls {autoplay_attr} style="width: 100%;">
-            <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
-            您的瀏覽器不支援音訊播放。
+    b64_audio = get_audio_base64(text)
+    
+    # 建立一個唯一的 ID
+    audio_id = f"audio_{key_suffix}_{random.randint(0, 100000)}"
+    
+    # HTML + JS
+    # 我們創建一個隱藏的 audio 標籤，然後用 JS 嘗試播放
+    # 同時提供一個顯眼的按鈕，如果自動播放失敗，點擊按鈕一定可以播
+    
+    html_code = f"""
+        <audio id="{audio_id}" preload="auto">
+            <source src="data:audio/mp3;base64,{b64_audio}" type="audio/mp3">
         </audio>
-        """
         
-        # 如果需要自動播放，為了確保在換題時真的會播，
-        # 我們加入一段 JS 來 "推" 它一把 (針對某些頑固的瀏覽器)
-        if autoplay_switch:
-            audio_html += f"""
-            <script>
-                var audio = document.getElementById("{player_id}");
-                if (audio) {{
-                    audio.play().catch(function(error) {{
-                        console.log("Autoplay blocked: " + error);
-                    }});
-                }}
-            </script>
-            """
+        <script>
+            var audio = document.getElementById("{audio_id}");
+            // 嘗試自動播放
+            var playPromise = audio.play();
             
-        return audio_html
-    except Exception as e:
-        return f"<div>語音載入錯誤: {str(e)}</div>"
+            if (playPromise !== undefined) {{
+                playPromise.then(_ => {{
+                    // 自動播放成功
+                }})
+                .catch(error => {{
+                    // 自動播放被阻止，這在 iOS 很常見
+                    console.log("Autoplay prevented by browser.");
+                }});
+            }}
+            
+            // 定義一個全局函數供按鈕調用
+            function play_{audio_id}() {{
+                var a = document.getElementById("{audio_id}");
+                a.currentTime = 0;
+                a.play();
+            }}
+        </script>
+
+        <button onclick="play_{audio_id}()" style="
+            background-color: #4CAF50; 
+            border: none;
+            color: white;
+            padding: 10px 24px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 8px;
+            width: 100%;">
+            🔊 點擊聽發音 (Play Audio)
+        </button>
+    """
+    
+    # 使用 components.html 插入完整的 HTML/JS 區塊
+    components.html(html_code, height=60)
 
 def safe_rerun():
     try:
@@ -183,14 +208,10 @@ elif st.session_state.game_state == "PLAYING":
     st.caption(f"進度：第 {idx + 1} 題 / 共 {len(q_list)} 題")
     st.header(q['en'])
     
-    # ------------------------------------------------
-    # 聲音播放區域 (重點修正)
-    # ------------------------------------------------
-    # 在遊戲進行中，我們希望自動播放，所以 autoplay_switch=True
-    html_player = get_audio_html(q['en'], f"q{idx}_{q['en']}", autoplay_switch=True)
-    st.markdown(html_player, unsafe_allow_html=True)
+    # 使用 JavaScript 播放器
+    # 這裡會渲染一個綠色的 HTML 按鈕，點擊後觸發 JS 播放
+    play_audio_js(q['en'], key_suffix=f"q_{idx}")
     
-    # 選項產生
     if not st.session_state.options:
         wrong_candidates = [w['zh'] for w in WORD_BANK if w['zh'] != q['zh']]
         opts = random.sample(wrong_candidates, 3) + [q['zh']]
@@ -249,7 +270,6 @@ elif st.session_state.game_state == "FINISH":
 
     if st.session_state.wrong_list:
         st.markdown("### 錯題複習")
-        st.info("點擊播放器按鈕聆聽發音") # 提示使用者手動播放
         for i, w in enumerate(st.session_state.wrong_list):
             st.write("---")
             col1, col2 = st.columns([3, 1])
@@ -257,17 +277,13 @@ elif st.session_state.game_state == "FINISH":
                 st.subheader(w['en'])
                 st.write(w['zh'])
             with col2:
-                # ------------------------------------------------
-                # 複習區域 (重點修正)
-                # ------------------------------------------------
-                # 在列表顯示時，絕對不能自動播放，否則會全部一起響
-                # 設定 autoplay_switch=False
-                review_html = get_audio_html(w['en'], f"rev_{i}_{w['en']}", autoplay_switch=False)
-                st.markdown(review_html, unsafe_allow_html=True)
+                # 複習區也使用 JS 播放器
+                play_audio_js(w['en'], key_suffix=f"rev_{i}")
     
     st.write("---")
     if st.button("回首頁重新開始", use_container_width=True):
         st.session_state.game_state = "START"
         safe_rerun()
+
 
 
