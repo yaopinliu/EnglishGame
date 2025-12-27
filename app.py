@@ -134,7 +134,8 @@ WORD_BANK = [
 def get_audio_base64(text, slow=False):
     """將文字轉為 base64 音訊資料"""
     try:
-        tts = gTTS(text=text, lang='en', slow=False) # 始終生成正常速度，慢速由 JS 控制
+        # 我們只生成 normal 速度的音檔，慢速由 JS 控制 (playbackRate)
+        tts = gTTS(text=text, lang='en', slow=False)
         fp = io.BytesIO()
         tts.write_to_fp(fp)
         fp.seek(0)
@@ -209,12 +210,6 @@ def create_cloze_word(word):
         for i in mask_indices: chars[i] = "_"
     return " ".join(chars)
 
-# 清除克漏字的暫存，確保下次隨機產生新的挖空
-def clear_cloze_cache():
-    keys_to_remove = [k for k in st.session_state.keys() if k.startswith("cloze_word_")]
-    for k in keys_to_remove:
-        del st.session_state[k]
-
 # ---------------------------------------------------------
 # 3. Session State 初始化
 # ---------------------------------------------------------
@@ -223,6 +218,7 @@ if 'mode' not in st.session_state: st.session_state.mode = "MAIN_MENU"
 if 'history' not in st.session_state:
     st.session_state.history = {}
 
+# is_review: 標記是否為複習模式
 if 'is_review' not in st.session_state:
     st.session_state.is_review = False
 
@@ -285,6 +281,7 @@ st.markdown("""
 # ---------------------------------------------------------
 
 def update_stats(mode, is_correct):
+    # 如果是在複習模式，不記錄成績
     if st.session_state.is_review:
         return
 
@@ -320,10 +317,19 @@ def run_listening_mode():
     if st.session_state.game_state == "START":
         st.header("🎧 聽力測驗")
         cats = sorted(list(set([w['cat'] for w in WORD_BANK])))
-        selected = st.selectbox("選擇主題：", ["全部隨機"] + cats)
-        if st.button("開始 (20題)", use_container_width=True):
+        
+        # 左右分欄：主題選擇 | 題數選擇
+        c_topic, c_num = st.columns([2, 1])
+        with c_topic:
+            selected = st.selectbox("選擇主題：", ["全部隨機"] + cats)
+        with c_num:
+            # 題數選擇：20 到 100，間隔 10
+            q_count = st.selectbox("題數：", list(range(20, 101, 10)), index=0)
+            
+        if st.button(f"開始 ({q_count}題)", use_container_width=True):
             pool = WORD_BANK if selected == "全部隨機" else [w for w in WORD_BANK if w['cat'] == selected]
-            st.session_state.questions = random.sample(pool, min(len(pool), 20))
+            # 隨機抽取指定題數，若該分類題數不足則取全部
+            st.session_state.questions = random.sample(pool, min(len(pool), q_count))
             st.session_state.game_state = "PLAYING"
             st.session_state.current_idx = 0
             st.session_state.score = 0
@@ -347,6 +353,7 @@ def run_listening_mode():
 
         if not st.session_state.options:
             wrong = [w['zh'] for w in WORD_BANK if w['zh'] != q['zh']]
+            # 確保有足夠的錯誤選項
             if len(wrong) < 3: wrong = wrong * 3
             opts = random.sample(wrong, 3) + [q['zh']]
             random.shuffle(opts)
@@ -394,10 +401,16 @@ def run_cloze_mode():
     if st.session_state.game_state == "START":
         st.header("🔤 克漏字")
         cats = sorted(list(set([w['cat'] for w in WORD_BANK])))
-        selected = st.selectbox("選擇主題：", ["全部隨機"] + cats)
-        if st.button("開始 (20題)", use_container_width=True):
+        
+        c_topic, c_num = st.columns([2, 1])
+        with c_topic:
+            selected = st.selectbox("選擇主題：", ["全部隨機"] + cats)
+        with c_num:
+            q_count = st.selectbox("題數：", list(range(20, 101, 10)), index=0)
+
+        if st.button(f"開始 ({q_count}題)", use_container_width=True):
             pool = WORD_BANK if selected == "全部隨機" else [w for w in WORD_BANK if w['cat'] == selected]
-            st.session_state.questions = random.sample(pool, min(len(pool), 20))
+            st.session_state.questions = random.sample(pool, min(len(pool), q_count))
             st.session_state.game_state = "PLAYING"
             st.session_state.current_idx = 0
             st.session_state.score = 0
@@ -406,7 +419,6 @@ def run_cloze_mode():
             st.session_state.ans_checked = False
             st.session_state.user_input = ""
             st.session_state.is_review = False
-            clear_cloze_cache() # 確保新的一局隨機挖空不同
             safe_rerun()
 
     elif st.session_state.game_state == "PLAYING":
@@ -453,8 +465,8 @@ def run_cloze_mode():
                 st.error(f"❌ 錯誤！正確答案是：{q['en']}")
             
             if st.button("下一題 ➡", use_container_width=True, type="primary"):
-                # 清除舊的暫存 (只清該題，避免清掉重做時需要的其他題快取)
-                # 但其實 clear_cloze_cache 在開始時最重要
+                old_cloze_key = f"cloze_word_{st.session_state.current_idx}"
+                if old_cloze_key in st.session_state: del st.session_state[old_cloze_key]
                 next_question()
 
     elif st.session_state.game_state == "FINISH":
@@ -491,7 +503,6 @@ def show_results(mode):
     if st.session_state.wrong_list:
         st.error(f"有 {len(st.session_state.wrong_list)} 題答錯，要重新練習嗎？")
         
-        # 預覽錯題
         with st.expander("👀 查看錯題列表"):
             for w in st.session_state.wrong_list:
                 st.write(f"**{w['en']}** {w['zh']}")
@@ -506,7 +517,10 @@ def show_results(mode):
             st.session_state.is_review = True
             st.session_state.ans_checked = False
             st.session_state.user_input = ""
-            clear_cloze_cache() # 確保重做時挖空位置隨機變化
+            # 清除之前的克漏字暫存，確保重做時隨機挖空位置不同
+            keys_to_remove = [k for k in st.session_state.keys() if k.startswith("cloze_word_")]
+            for k in keys_to_remove:
+                del st.session_state[k]
             safe_rerun()
     else:
         st.success("全對！太棒了！")
