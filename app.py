@@ -1,11 +1,11 @@
 import streamlit as st
 import random
 from gtts import gTTS
-import os
-import time
+import io
+import base64
 
 # ---------------------------------------------------------
-# 1. 單字資料庫
+# 1. 單字資料庫 (包含主要分類與單字)
 # ---------------------------------------------------------
 WORD_BANK = [
     # --- 動物/昆蟲 ---
@@ -80,30 +80,30 @@ WORD_BANK = [
 ]
 
 # ---------------------------------------------------------
-# 2. 核心功能函數
+# 2. 核心功能函數: Base64 HTML 播放器
 # ---------------------------------------------------------
 
-def get_audio_file(text):
+def autoplay_audio(text):
     """
-    產生一個暫存的 mp3 檔案並回傳路徑與二進位資料。
-    iOS Safari 對於動態 stream 的支援有時不穩，
-    寫入檔案再讀取通常比較安全。
+    產生一個 HTML5 audio 標籤並回傳 HTML 字串。
+    使用 Base64 編碼，避免 iOS Safari 對 blob 或 temp file 的快取問題。
     """
-    try:
-        tts = gTTS(text=text, lang='en')
-        # 建立唯一的檔名避免快取衝突
-        filename = f"temp_audio_{random.randint(1000, 9999)}.mp3"
-        tts.save(filename)
-        
-        with open(filename, "rb") as f:
-            data = f.read()
-            
-        # 讀取完畢後刪除，或保留給本次 request 使用
-        # 為了簡單起見，這裡不立即刪除，Streamlit 重啟會清空
-        return data
-    except Exception as e:
-        st.error(f"語音生成失敗: {e}")
-        return None
+    tts = gTTS(text=text, lang='en')
+    fp = io.BytesIO()
+    tts.write_to_fp(fp)
+    fp.seek(0)
+    audio_base64 = base64.b64encode(fp.read()).decode()
+    
+    # 產生 HTML 播放器
+    # 注意: iOS Safari 預設禁止 autoplay，但我們將它設為 controls，讓使用者點擊播放
+    # 為了嘗試自動播放，我們加入 autoplay 屬性，但如果 iOS 擋下來，使用者至少能看到播放控制條點擊
+    audio_html = f"""
+    <audio controls autoplay style="width: 100%;">
+        <source src="data:audio/mp3;base64,{audio_base64}" type="audio/mp3">
+        您的瀏覽器不支援播放聲音。
+    </audio>
+    """
+    return audio_html
 
 def safe_rerun():
     try:
@@ -123,8 +123,7 @@ if 'game_state' not in st.session_state:
         'wrong_list': [], 
         'options': [], 
         'ans_checked': False, 
-        'selected_opt': None,
-        'audio_cache': {} # 快取音檔避免重複生成
+        'selected_opt': None
     })
 
 # ---------------------------------------------------------
@@ -149,7 +148,6 @@ if st.session_state.game_state == "START":
         st.session_state.options = []
         st.session_state.ans_checked = False
         st.session_state.selected_opt = None
-        st.session_state.audio_cache = {} # 清空快取
         safe_rerun()
 
 # --- 階段 B: 遊戲進行中 ---
@@ -160,26 +158,16 @@ elif st.session_state.game_state == "PLAYING":
     
     st.caption(f"進度：第 {idx + 1} 題 / 共 {len(q_list)} 題")
     
-    # 標題
+    # 單字標題
     st.header(q['en'])
     
-    # iOS 友善的播放機制
-    # 使用 container 來區隔，確保重新整理時佈局穩定
-    audio_container = st.container()
-    
-    # 預先生成音檔 (如果還沒快取)
-    if q['en'] not in st.session_state.audio_cache:
-        st.session_state.audio_cache[q['en']] = get_audio_file(q['en'])
-    
-    audio_bytes = st.session_state.audio_cache[q['en']]
-
-    # 顯示播放按鈕 (手動播放)
-    # 不使用 autoplay=True，因為 iOS 會阻擋
-    # 讓使用者點擊播放器本身
-    if audio_bytes:
-        st.audio(audio_bytes, format='audio/mp3')
-    else:
-        st.warning("無法載入語音")
+    # ------------------------------------------------
+    # 關鍵修正：使用 HTML Base64 播放器
+    # ------------------------------------------------
+    # 產生音訊 HTML
+    html_player = autoplay_audio(q['en'])
+    # 使用 st.markdown 渲染 HTML，並允許 unsafe_allow_html
+    st.markdown(html_player, unsafe_allow_html=True)
     
     if not st.session_state.options:
         wrong_candidates = [w['zh'] for w in WORD_BANK if w['zh'] != q['zh']]
@@ -187,7 +175,7 @@ elif st.session_state.game_state == "PLAYING":
         random.shuffle(opts)
         st.session_state.options = opts
 
-    st.write("---") # 分隔線
+    st.write("---") 
 
     # === 選項顯示區域 ===
     if not st.session_state.ans_checked:
@@ -240,17 +228,15 @@ elif st.session_state.game_state == "FINISH":
     if st.session_state.wrong_list:
         st.markdown("### 錯題複習")
         for w in st.session_state.wrong_list:
+            st.write("---")
             col1, col2 = st.columns([3, 1])
             with col1:
-                st.write(f"**{w['en']}** : {w['zh']}")
+                st.subheader(w['en'])
+                st.write(w['zh'])
             with col2:
-                # 這裡直接用 st.audio 顯示播放器，讓使用者點擊播放
-                if w['en'] not in st.session_state.audio_cache:
-                     st.session_state.audio_cache[w['en']] = get_audio_file(w['en'])
-                
-                aud = st.session_state.audio_cache.get(w['en'])
-                if aud:
-                    st.audio(aud, format='audio/mp3')
+                # 複習區也使用 HTML 播放器
+                review_html = autoplay_audio(w['en'])
+                st.markdown(review_html, unsafe_allow_html=True)
     
     st.write("---")
     if st.button("回首頁重新開始", use_container_width=True):
