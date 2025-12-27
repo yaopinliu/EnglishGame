@@ -230,6 +230,14 @@ st.markdown("""
     .stButton button { width: 100%; height: 50px; font-size: 18px; margin-top: 0px; }
     /* 減少垂直間距 */
     div[data-testid="stVerticalBlock"] > div { gap: 0.5rem; }
+    /* 大字體樣式 */
+    .big-word {
+        font-size: 3rem;
+        font-weight: bold;
+        color: #1E88E5;
+        text-align: center;
+        margin-bottom: 10px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -269,11 +277,14 @@ def run_listening_mode():
     elif st.session_state.game_state == "PLAYING":
         q = st.session_state.questions[st.session_state.current_idx]
         
-        # 題目區：單字與發音
+        # 題目區：單字(放大)與發音並排
+        # 調整 column 比例讓按鈕不被切到
         c1, c2 = st.columns([2, 1])
         with c1:
-            st.markdown(f"<h2 style='text-align: center; color: #1E88E5;'>{q['en']}</h2>", unsafe_allow_html=True)
+            st.markdown(f"<div class='big-word'>{q['en']}</div>", unsafe_allow_html=True)
         with c2:
+            # 使用空容器調整垂直位置，讓按鈕對齊文字中心
+            st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
             play_audio_js(q['en'], key_suffix=f"lis_{st.session_state.current_idx}", button_text="🔊")
 
         if not st.session_state.options:
@@ -346,34 +357,28 @@ def run_cloze_mode():
         if cloze_key not in st.session_state:
             st.session_state[cloze_key] = create_cloze_word(q['en'])
 
-        # 顯示題目
+        # 顯示題目與發音按鈕 (並排)
         st.caption(f"中文提示：{q['zh']}")
         
-        # 使用 form 來處理輸入，方便按 Enter 提交
-        with st.form(key=f"cloze_form_{st.session_state.current_idx}"):
-            c1, c2 = st.columns([3, 1])
-            with c1:
-                st.markdown(f"<h2 style='text-align: center; letter-spacing: 2px;'>{st.session_state[cloze_key]}</h2>", unsafe_allow_html=True)
-            with c2:
-                # 這裡不直接播放，避免 iOS 表單提交問題，只顯示靜態文字
-                st.caption("請拼出完整單字")
+        c1, c2 = st.columns([2, 1])
+        with c1:
+            st.markdown(f"<h2 style='text-align: center; letter-spacing: 2px;'>{st.session_state[cloze_key]}</h2>", unsafe_allow_html=True)
+        with c2:
+            play_audio_js(q['en'], key_suffix=f"cloze_{st.session_state.current_idx}", button_text="🔊 聽提示")
 
+        # 使用 form 來處理輸入
+        with st.form(key=f"cloze_form_{st.session_state.current_idx}"):
             # 輸入框
             user_ans = st.text_input("請輸入完整單字：", value="", disabled=st.session_state.ans_checked)
-            
             # 提交按鈕
             submit_btn = st.form_submit_button("提交答案", disabled=st.session_state.ans_checked)
         
-        # 輔助發音按鈕 (放在 form 外面比較安全)
-        play_audio_js(q['en'], key_suffix=f"cloze_{st.session_state.current_idx}", button_text="🔊 聽提示")
-
         # 處理提交邏輯
         if submit_btn and not st.session_state.ans_checked:
             st.session_state.ans_checked = True
             st.session_state.user_input = user_ans
             st.session_state.total_questions += 1
             
-            # 判斷對錯 (忽略大小寫與前後空白)
             if user_ans.strip().lower() == q['en'].lower():
                 st.session_state.score += 5
                 st.session_state.total_correct += 1
