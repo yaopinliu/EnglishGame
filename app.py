@@ -2,10 +2,9 @@ import streamlit as st
 import random
 from gtts import gTTS
 import io
-import time
 
 # ---------------------------------------------------------
-# 1. 單字資料庫 (包含主要分類與單字)
+# 1. 單字資料庫
 # ---------------------------------------------------------
 WORD_BANK = [
     # --- 動物/昆蟲 ---
@@ -115,7 +114,7 @@ if 'game_state' not in st.session_state:
 # 4. 介面與邏輯
 # ---------------------------------------------------------
 st.set_page_config(page_title="GEPT Kids 單字練習", page_icon="📝")
-st.title("小學英檢單字王")  # 移除了 emoji
+st.title("小學英檢單字王")
 
 # --- 階段 A: 開始選單 ---
 if st.session_state.game_state == "START":
@@ -143,18 +142,23 @@ elif st.session_state.game_state == "PLAYING":
     
     st.caption(f"進度：第 {idx + 1} 題 / 共 {len(q_list)} 題")
     
-    # 修改：標題不帶任何圖示
+    # 標題 (無圖示)
     st.header(q['en'])
     
-    # 自動播放發音
-    audio_data = get_audio(q['en'])
-    st.audio(audio_data, format='audio/mp3', autoplay=True)
+    # 重要修改：針對 iOS 的播放按鈕
+    # 不自動播放，而是顯示一個大大的按鈕讓使用者點擊
+    st.write("🔊 點擊聽發音：")
+    if st.button("播放單字聲音", key=f"play_{idx}"):
+        audio_data = get_audio(q['en'])
+        st.audio(audio_data, format='audio/mp3', autoplay=True)
     
     if not st.session_state.options:
         wrong_candidates = [w['zh'] for w in WORD_BANK if w['zh'] != q['zh']]
         opts = random.sample(wrong_candidates, 3) + [q['zh']]
         random.shuffle(opts)
         st.session_state.options = opts
+
+    st.write("---") # 分隔線
 
     # === 選項顯示區域 ===
     if not st.session_state.ans_checked:
@@ -193,7 +197,7 @@ elif st.session_state.game_state == "PLAYING":
 # --- 階段 C: 結算畫面 ---
 elif st.session_state.game_state == "FINISH":
     st.balloons()
-    st.header("挑戰結束！") # 移除了 emoji
+    st.header("挑戰結束！")
     
     st.metric("最終得分", f"{st.session_state.score} 分")
     
@@ -205,12 +209,13 @@ elif st.session_state.game_state == "FINISH":
         st.warning("再接再厲，多練習幾次會更強！")
 
     if st.session_state.wrong_list:
-        st.markdown("### 錯題複習") # 移除了 emoji
+        st.markdown("### 錯題複習")
         for w in st.session_state.wrong_list:
             col1, col2 = st.columns([3, 1])
             with col1:
                 st.write(f"**{w['en']}** : {w['zh']}")
             with col2:
+                # 這裡的播放按鈕同樣需要是使用者觸發
                 if st.button("🔊", key=f"rev_{w['en']}"):
                     st.audio(get_audio(w['en']), autoplay=True)
     
