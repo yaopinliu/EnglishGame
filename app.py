@@ -131,27 +131,25 @@ WORD_BANK = [
 # ---------------------------------------------------------
 
 def get_audio_base64(text):
-    """將文字轉為 base64 音訊資料，並增加錯誤處理"""
+    """將文字轉為 base64 音訊資料"""
     try:
         tts = gTTS(text=text, lang='en')
         fp = io.BytesIO()
         tts.write_to_fp(fp)
         fp.seek(0)
         return base64.b64encode(fp.read()).decode()
-    except Exception as e:
-        print(f"Error generating audio: {e}")
+    except Exception:
         return None
 
 def play_audio_js(text, key_suffix=""):
     """
-    產生隱藏的 Audio 標籤與 JS 播放邏輯 (相容 iOS)
+    相容 iOS 的播放器 (Hidden Audio + Visible Button)
     """
     b64_audio = get_audio_base64(text)
     if not b64_audio:
         st.warning("無法載入發音")
         return
     
-    # 增加按鈕的唯一性 ID 防止衝突
     audio_id = f"audio_{key_suffix}_{random.randint(0, 100000)}"
     
     html_code = f"""
@@ -161,30 +159,29 @@ def play_audio_js(text, key_suffix=""):
         <script>
             function play_{audio_id}() {{
                 var a = document.getElementById("{audio_id}");
-                if (a) {{
+                if(a) {{
                     a.currentTime = 0;
                     a.play().catch(e => console.log(e));
                 }}
             }}
         </script>
         <button onclick="play_{audio_id}()" class="play-btn">
-            🔊 點擊聽發音
+            🔊 聽發音
         </button>
         <style>
             .play-btn {{
                 background-color: #4CAF50; border: none; color: white;
-                padding: 12px 20px; text-align: center; text-decoration: none;
-                display: inline-block; font-size: 16px; margin: 5px 0;
+                padding: 10px 20px; text-align: center; text-decoration: none;
+                display: inline-block; font-size: 16px; margin: 4px 2px;
                 cursor: pointer; border-radius: 8px; width: 100%;
-                font-family: sans-serif; box-sizing: border-box;
+                font-family: sans-serif;
             }}
             .play-btn:active {{ background-color: #45a049; transform: scale(0.98); }}
         </style>
     """
-    components.html(html_code, height=70)
+    components.html(html_code, height=60)
 
 def safe_rerun():
-    """安全地重新執行 Streamlit 腳本"""
     try:
         st.rerun()
     except AttributeError:
@@ -192,7 +189,7 @@ def safe_rerun():
 
 def create_cloze_word(word):
     """
-    將單字隨機挖空，例如 'elephant' -> 'e _ e p _ a n t'
+    隨機挖空單字
     """
     if len(word) <= 2:
         return word
@@ -200,7 +197,7 @@ def create_cloze_word(word):
         return f"{word[0]} _ {word[2]}"
     
     chars = list(word)
-    num_to_mask = max(1, int(len(word) * 0.4)) # 挖空 40%
+    num_to_mask = max(1, int(len(word) * 0.4)) # 40%
     
     indices = list(range(1, len(word) - 1))
     if indices:
@@ -213,11 +210,21 @@ def create_cloze_word(word):
 # ---------------------------------------------------------
 # 3. Session State 初始化
 # ---------------------------------------------------------
+# A. 全域統計資料 (Session 期間不清除)
+if 'stats_total_games' not in st.session_state:
+    st.session_state.stats_total_games = 0
+if 'stats_total_score' not in st.session_state:
+    st.session_state.stats_total_score = 0
+if 'stats_correct' not in st.session_state:
+    st.session_state.stats_correct = 0
+if 'stats_wrong' not in st.session_state:
+    st.session_state.stats_wrong = 0
+
+# B. 遊戲狀態
 if 'mode' not in st.session_state:
     st.session_state.mode = "MAIN_MENU"
 
-# 確保所有必要的狀態變數都存在
-defaults = {
+game_defaults = {
     'game_state': "START",
     'score': 0, 'current_idx': 0, 'questions': [],
     'wrong_list': [], 'options': [],
@@ -225,7 +232,7 @@ defaults = {
     'user_typed': "", 'last_result': None
 }
 
-for key, val in defaults.items():
+for key, val in game_defaults.items():
     if key not in st.session_state:
         st.session_state[key] = val
 
@@ -234,7 +241,18 @@ for key, val in defaults.items():
 # ---------------------------------------------------------
 st.set_page_config(page_title="GEPT Kids 單字王", page_icon="🎓")
 
-# --- 模式 A: 聽力測驗 (Listening) ---
+def update_stats_at_finish():
+    """遊戲結束時更新全域統計"""
+    st.session_state.stats_total_games += 1
+    st.session_state.stats_total_score += st.session_state.score
+    # score / 5 = 答對題數 (每題5分)
+    correct_count = st.session_state.score // 5
+    wrong_count = len(st.session_state.wrong_list)
+    
+    st.session_state.stats_correct += correct_count
+    st.session_state.stats_wrong += wrong_count
+
+# --- 模式 A: 聽力測驗 ---
 def run_listening_mode():
     st.title("🎧 英語聽力測驗")
     if st.button("⬅ 回主選單", key="back_lis"):
@@ -246,7 +264,7 @@ def run_listening_mode():
         cats = sorted(list(set([w['cat'] for w in WORD_BANK])))
         selected = st.selectbox("選擇主題：", ["全部隨機"] + cats)
         
-        if st.button("開始聽力測驗 (20題)", use_container_width=True):
+        if st.button("開始測驗 (20題)", use_container_width=True):
             pool = WORD_BANK if selected == "全部隨機" else [w for w in WORD_BANK if w['cat'] == selected]
             st.session_state.questions = random.sample(pool, min(len(pool), 20))
             st.session_state.game_state = "PLAYING"
@@ -293,13 +311,14 @@ def run_listening_mode():
                 st.session_state.ans_checked = False
                 st.session_state.options = []
                 if st.session_state.current_idx >= len(st.session_state.questions):
+                    update_stats_at_finish()
                     st.session_state.game_state = "FINISH"
                 safe_rerun()
 
     elif st.session_state.game_state == "FINISH":
         show_results()
 
-# --- 模式 B: 克漏字測驗 (Cloze - Typing) ---
+# --- 模式 B: 克漏字測驗 (Typing) ---
 def run_cloze_mode():
     st.title("🔤 單字拼寫/克漏字")
     if st.button("⬅ 回主選單", key="back_cloze"):
@@ -329,19 +348,15 @@ def run_cloze_mode():
         
         st.subheader(f"中文提示：{q['zh']}")
         
-        # 產生挖空單字
         cloze_key = f"cloze_word_{st.session_state.current_idx}"
         if cloze_key not in st.session_state:
             st.session_state[cloze_key] = create_cloze_word(q['en'])
             
         st.markdown(f"### 單字提示： `{st.session_state[cloze_key]}`")
-        
-        # 輔助發音
         play_audio_js(q['en'], key_suffix=f"cloze_{st.session_state.current_idx}_{random.randint(0,999)}")
 
         st.write("---")
 
-        # 輸入區域 (如果還沒回答)
         if not st.session_state.ans_checked:
             with st.form(key=f"cloze_form_{st.session_state.current_idx}"):
                 user_val = st.text_input("請輸入完整單字：", key=f"input_{st.session_state.current_idx}")
@@ -351,7 +366,6 @@ def run_cloze_mode():
                 st.session_state.user_typed = user_val
                 st.session_state.ans_checked = True
                 
-                # 比對答案 (忽略大小寫與前後空白)
                 if user_val.strip().lower() == q['en'].lower():
                     st.session_state.score += 5
                     st.session_state.last_result = "CORRECT"
@@ -360,7 +374,6 @@ def run_cloze_mode():
                     st.session_state.last_result = "WRONG"
                 safe_rerun()
         
-        # 顯示結果區域 (已回答)
         else:
             if st.session_state.last_result == "CORRECT":
                 st.success(f"✅ 答對了！正確答案是：{q['en']}")
@@ -374,12 +387,12 @@ def run_cloze_mode():
                 st.session_state.user_typed = ""
                 st.session_state.last_result = None
                 
-                # 清除舊的提示暫存
                 old_cloze_key = f"cloze_word_{st.session_state.current_idx - 1}"
                 if old_cloze_key in st.session_state:
                     del st.session_state[old_cloze_key]
                 
                 if st.session_state.current_idx >= len(st.session_state.questions):
+                    update_stats_at_finish()
                     st.session_state.game_state = "FINISH"
                 safe_rerun()
 
@@ -389,7 +402,7 @@ def run_cloze_mode():
 def show_results():
     st.balloons()
     st.header("🏆 測驗結束！")
-    st.metric("最終得分", f"{st.session_state.score} 分")
+    st.metric("本局得分", f"{st.session_state.score} 分")
     
     if st.session_state.wrong_list:
         st.subheader("📖 錯題複習")
@@ -413,6 +426,19 @@ def show_results():
 # --- 主程式進入點 ---
 if st.session_state.mode == "MAIN_MENU":
     st.title("🎓 小學英檢單字王")
+    
+    st.markdown("### 📊 學習統計 (本次開啟)")
+    col_a, col_b, col_c = st.columns(3)
+    col_a.metric("完成次數", f"{st.session_state.stats_total_games} 次")
+    col_b.metric("累積總分", f"{st.session_state.stats_total_score} 分")
+    # 計算正確率
+    total_attempts = st.session_state.stats_correct + st.session_state.stats_wrong
+    accuracy = 0
+    if total_attempts > 0:
+        accuracy = int((st.session_state.stats_correct / total_attempts) * 100)
+    col_c.metric("總正確率", f"{accuracy} %")
+    
+    st.write("---")
     st.write("請選擇測驗模式：")
     
     col1, col2 = st.columns(2)
