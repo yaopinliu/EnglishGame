@@ -95,16 +95,9 @@ def get_audio_base64(text):
 def play_audio_js(text, key_suffix=""):
     """
     產生一個不可見的 HTML 元素，並注入 JavaScript 來播放聲音。
-    這是繞過 iOS Safari 自動播放限制最有效的方法之一。
     """
     b64_audio = get_audio_base64(text)
-    
-    # 建立一個唯一的 ID
     audio_id = f"audio_{key_suffix}_{random.randint(0, 100000)}"
-    
-    # HTML + JS
-    # 我們創建一個隱藏的 audio 標籤，然後用 JS 嘗試播放
-    # 同時提供一個顯眼的按鈕，如果自動播放失敗，點擊按鈕一定可以播
     
     html_code = f"""
         <audio id="{audio_id}" preload="auto">
@@ -113,20 +106,12 @@ def play_audio_js(text, key_suffix=""):
         
         <script>
             var audio = document.getElementById("{audio_id}");
-            // 嘗試自動播放
             var playPromise = audio.play();
-            
             if (playPromise !== undefined) {{
-                playPromise.then(_ => {{
-                    // 自動播放成功
-                }})
-                .catch(error => {{
-                    // 自動播放被阻止，這在 iOS 很常見
-                    console.log("Autoplay prevented by browser.");
+                playPromise.catch(error => {{
+                    console.log("Autoplay prevented.");
                 }});
             }}
-            
-            // 定義一個全局函數供按鈕調用
             function play_{audio_id}() {{
                 var a = document.getElementById("{audio_id}");
                 a.currentTime = 0;
@@ -138,21 +123,21 @@ def play_audio_js(text, key_suffix=""):
             background-color: #4CAF50; 
             border: none;
             color: white;
-            padding: 10px 24px;
+            padding: 12px 24px;
             text-align: center;
             text-decoration: none;
             display: inline-block;
-            font-size: 16px;
+            font-size: 18px;
             margin: 4px 2px;
             cursor: pointer;
-            border-radius: 8px;
-            width: 100%;">
-            🔊 點擊聽發音 (Play Audio)
+            border-radius: 12px;
+            width: 100%;
+            font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            🔊 點擊聽發音 (Play)
         </button>
     """
-    
-    # 使用 components.html 插入完整的 HTML/JS 區塊
-    components.html(html_code, height=60)
+    components.html(html_code, height=70)
 
 def safe_rerun():
     try:
@@ -208,10 +193,10 @@ elif st.session_state.game_state == "PLAYING":
     st.caption(f"進度：第 {idx + 1} 題 / 共 {len(q_list)} 題")
     st.header(q['en'])
     
-    # 使用 JavaScript 播放器
-    # 這裡會渲染一個綠色的 HTML 按鈕，點擊後觸發 JS 播放
+    # 播放按鈕
     play_audio_js(q['en'], key_suffix=f"q_{idx}")
     
+    # 選項邏輯
     if not st.session_state.options:
         wrong_candidates = [w['zh'] for w in WORD_BANK if w['zh'] != q['zh']]
         opts = random.sample(wrong_candidates, 3) + [q['zh']]
@@ -220,7 +205,9 @@ elif st.session_state.game_state == "PLAYING":
 
     st.write("---") 
 
-    # === 選項顯示區域 ===
+    # === [關鍵修改] 介面佈局優化 ===
+    
+    # 狀況 1: 使用者尚未回答 -> 顯示選項按鈕
     if not st.session_state.ans_checked:
         st.subheader("請選擇正確意思：")
         for opt in st.session_state.options:
@@ -233,26 +220,35 @@ elif st.session_state.game_state == "PLAYING":
                     st.session_state.wrong_list.append(q)
                 safe_rerun()
 
+    # 狀況 2: 使用者已回答 -> 優先顯示「下一題」按鈕
     else:
-        st.subheader("答案核對：")
-        for opt in st.session_state.options:
-            if opt == q['zh']:
-                st.success(f"{opt} (正確答案)")
-            elif opt == st.session_state.selected_opt:
-                st.error(f"{opt} (您的選擇)")
-            else:
-                st.info(opt)
+        # 1. 立即顯示結果回饋
+        if st.session_state.selected_opt == q['zh']:
+            st.success("✅ 答對了！")
+        else:
+            st.error(f"❌ 答錯了！")
+            st.info(f"正確答案是：{q['zh']}")
 
-        st.write("") 
-        st.write("---") 
-        if st.button("下一題", use_container_width=True, type="primary"):
+        # 2. [重點] 下一題按鈕直接放在這裡，手指不用滑
+        if st.button("➡ 下一題 (Next)", type="primary", use_container_width=True):
             st.session_state.current_idx += 1
-            st.session_state.options = []
+            st.session_state.options = []     # 清空選項
             st.session_state.ans_checked = False
             st.session_state.selected_opt = None
+            
             if st.session_state.current_idx >= len(q_list):
                 st.session_state.game_state = "FINISH"
             safe_rerun()
+
+        # 3. 視覺化選項核對 (放在按鈕下方，想看再看)
+        st.caption("詳細選項核對：")
+        for opt in st.session_state.options:
+            if opt == q['zh']:
+                st.success(f"✅ {opt}")
+            elif opt == st.session_state.selected_opt:
+                st.error(f"❌ {opt}")
+            else:
+                st.write(f"⚪ {opt}")
 
 # --- 階段 C: 結算畫面 ---
 elif st.session_state.game_state == "FINISH":
@@ -277,13 +273,11 @@ elif st.session_state.game_state == "FINISH":
                 st.subheader(w['en'])
                 st.write(w['zh'])
             with col2:
-                # 複習區也使用 JS 播放器
                 play_audio_js(w['en'], key_suffix=f"rev_{i}")
     
     st.write("---")
     if st.button("回首頁重新開始", use_container_width=True):
         st.session_state.game_state = "START"
         safe_rerun()
-
 
 
