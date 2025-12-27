@@ -131,10 +131,10 @@ WORD_BANK = [
 # 2. 核心功能: JS Audio Player & 工具函數
 # ---------------------------------------------------------
 
-def get_audio_base64(text):
-    """將文字轉為 base64 音訊資料"""
+def get_audio_base64(text, slow=False):
+    """將文字轉為 base64 音訊資料，支援慢速"""
     try:
-        tts = gTTS(text=text, lang='en')
+        tts = gTTS(text=text, lang='en', slow=slow)
         fp = io.BytesIO()
         tts.write_to_fp(fp)
         fp.seek(0)
@@ -142,40 +142,57 @@ def get_audio_base64(text):
     except Exception:
         return None
 
-def play_audio_js(text, key_suffix="", button_text="🔊 點擊發音"):
+def render_audio_controls(text, key_suffix=""):
     """
-    產生隱藏的 Audio 標籤與 JS 播放邏輯 (相容 iOS)
+    產生包含「正常」與「慢速」兩顆按鈕的 HTML
     """
-    b64_audio = get_audio_base64(text)
-    if not b64_audio:
+    b64_norm = get_audio_base64(text, slow=False)
+    b64_slow = get_audio_base64(text, slow=True)
+    
+    if not b64_norm or not b64_slow:
+        st.warning("無法載入發音")
         return
     
-    audio_id = f"audio_{key_suffix}_{random.randint(0, 100000)}"
+    id_norm = f"aud_n_{key_suffix}_{random.randint(0,99999)}"
+    id_slow = f"aud_s_{key_suffix}_{random.randint(0,99999)}"
     
     html_code = f"""
-        <audio id="{audio_id}" preload="auto">
-            <source src="data:audio/mp3;base64,{b64_audio}" type="audio/mp3">
-        </audio>
-        <script>
-            function play_{audio_id}() {{
-                var a = document.getElementById("{audio_id}");
-                a.currentTime = 0;
-                a.play().catch(e => console.log(e));
-            }}
-        </script>
-        <button onclick="play_{audio_id}()" class="play-btn">
-            {button_text}
-        </button>
+        <div style="display: flex; gap: 5px; width: 100%;">
+            <audio id="{id_norm}" preload="auto">
+                <source src="data:audio/mp3;base64,{b64_norm}" type="audio/mp3">
+            </audio>
+            <audio id="{id_slow}" preload="auto">
+                <source src="data:audio/mp3;base64,{b64_slow}" type="audio/mp3">
+            </audio>
+            
+            <script>
+                function p(id) {{
+                    var a = document.getElementById(id);
+                    if(a) {{
+                        a.currentTime = 0;
+                        a.play().catch(e => console.log(e));
+                    }}
+                }}
+            </script>
+            
+            <button onclick="p('{id_norm}')" class="aud-btn norm">🔊 正常</button>
+            <button onclick="p('{id_slow}')" class="aud-btn slow">🐢 慢速</button>
+        </div>
         <style>
-            /* 按鈕樣式 */
-            .play-btn {{
-                background-color: #4CAF50; border: none; color: white;
-                padding: 10px 16px; text-align: center; text-decoration: none;
-                display: inline-block; font-size: 14px; margin: 4px 2px;
-                cursor: pointer; border-radius: 8px; width: 100%;
+            .aud-btn {{
+                flex: 1;
+                border: none; color: white;
+                padding: 0;
+                font-size: 14px;
+                cursor: pointer; border-radius: 8px;
+                height: 45px;
+                line-height: 45px;
                 font-family: "Segoe UI", sans-serif;
+                transition: transform 0.1s;
             }}
-            .play-btn:active {{ background-color: #45a049; transform: scale(0.98); }}
+            .aud-btn:active {{ transform: scale(0.96); filter: brightness(0.9); }}
+            .norm {{ background-color: #4CAF50; }}
+            .slow {{ background-color: #FF9800; }}
         </style>
     """
     components.html(html_code, height=50)
@@ -201,10 +218,12 @@ def create_cloze_word(word):
 # ---------------------------------------------------------
 if 'mode' not in st.session_state: st.session_state.mode = "MAIN_MENU"
 
-# --- 歷史數據 (Dictionary) ---
-# 格式: { "YYYY-MM-DD": { "list_correct": 0, "list_total": 0, "cloze_correct": 0, "cloze_total": 0 } }
 if 'history' not in st.session_state:
     st.session_state.history = {}
+
+# is_review: 標記是否為複習模式
+if 'is_review' not in st.session_state:
+    st.session_state.is_review = False
 
 if 'game_state' not in st.session_state:
     st.session_state.update({
@@ -213,15 +232,14 @@ if 'game_state' not in st.session_state:
         'wrong_list': [], 'options': [], 
         'ans_checked': False, 'selected_opt': None,
         'user_input': "",
-        'session_correct_count': 0 # 本輪答對題數
+        'session_correct_count': 0 
     })
 
 # ---------------------------------------------------------
-# 4. 版面調整 CSS
+# 4. 版面 CSS
 # ---------------------------------------------------------
 st.markdown("""
 <style>
-    /* 增加頂部間距，解決按鈕被遮擋問題 */
     .block-container { 
         padding-top: 4rem; 
         padding-bottom: 2rem; 
@@ -231,7 +249,6 @@ st.markdown("""
     .stButton button { width: 100%; height: 50px; font-size: 18px; margin-top: 0px; }
     div[data-testid="stVerticalBlock"] > div { gap: 0.5rem; }
     
-    /* 大字體樣式 */
     .big-word {
         font-size: 3rem;
         font-weight: bold;
@@ -240,7 +257,15 @@ st.markdown("""
         margin-bottom: 10px;
     }
     
-    /* 統計表格樣式 */
+    .cloze-big-word {
+        font-size: 3rem;
+        font-weight: bold;
+        color: #1E88E5; 
+        text-align: center;
+        letter-spacing: 5px;
+        margin-bottom: 10px;
+    }
+    
     .stat-box {
         padding: 10px;
         background-color: #f0f2f6;
@@ -251,6 +276,16 @@ st.markdown("""
     .stat-row { display: flex; justify-content: space-between; margin-top: 5px; }
     .stat-label { color: #555; }
     .stat-val { font-weight: bold; }
+    
+    .review-badge {
+        background-color: #FF9800;
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        font-weight: bold;
+        margin-right: 5px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -258,18 +293,18 @@ st.markdown("""
 # 5. 主程式邏輯
 # ---------------------------------------------------------
 
-# --- 更新統計資料函數 ---
 def update_stats(mode, is_correct):
+    # 如果是在複習模式，不記錄成績
+    if st.session_state.is_review:
+        return
+
     today_str = datetime.now().strftime("%Y-%m-%d")
-    
-    # 如果今天還沒有資料，初始化
     if today_str not in st.session_state.history:
         st.session_state.history[today_str] = {
             "list_correct": 0, "list_total": 0,
             "cloze_correct": 0, "cloze_total": 0
         }
     
-    # 根據模式更新
     if mode == "LISTENING":
         st.session_state.history[today_str]["list_total"] += 1
         if is_correct:
@@ -279,7 +314,7 @@ def update_stats(mode, is_correct):
         if is_correct:
             st.session_state.history[today_str]["cloze_correct"] += 1
 
-# --- 模式 A: 聽力測驗 (Listening) ---
+# --- 模式 A: 聽力測驗 ---
 def run_listening_mode():
     col_back, col_info = st.columns([1, 2])
     with col_back:
@@ -289,7 +324,9 @@ def run_listening_mode():
             safe_rerun()
     with col_info:
         if st.session_state.game_state == "PLAYING":
-            st.caption(f"📊 得分: {st.session_state.score} | 進度: {st.session_state.current_idx + 1}/20")
+            # 顯示是否為複習模式
+            status_text = "🔄 錯題重練" if st.session_state.is_review else f"進度: {st.session_state.current_idx + 1}/{len(st.session_state.questions)}"
+            st.caption(f"📊 得分: {st.session_state.score} | {status_text}")
 
     if st.session_state.game_state == "START":
         st.header("🎧 聽力測驗")
@@ -306,6 +343,7 @@ def run_listening_mode():
             st.session_state.options = []
             st.session_state.ans_checked = False
             st.session_state.selected_opt = None
+            st.session_state.is_review = False # 正常模式
             safe_rerun()
 
     elif st.session_state.game_state == "PLAYING":
@@ -315,8 +353,8 @@ def run_listening_mode():
         with c1:
             st.markdown(f"<div class='big-word'>{q['en']}</div>", unsafe_allow_html=True)
         with c2:
-            st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-            play_audio_js(q['en'], key_suffix=f"lis_{st.session_state.current_idx}", button_text="🔊")
+            st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+            render_audio_controls(q['en'], key_suffix=f"lis_{st.session_state.current_idx}")
 
         if not st.session_state.options:
             wrong = [w['zh'] for w in WORD_BANK if w['zh'] != q['zh']]
@@ -325,7 +363,6 @@ def run_listening_mode():
             random.shuffle(opts)
             st.session_state.options = opts
 
-        # 選項區
         opts = st.session_state.options
         for i in range(0, 4, 2):
             col_a, col_b = st.columns(2)
@@ -350,9 +387,9 @@ def run_listening_mode():
                 next_question()
 
     elif st.session_state.game_state == "FINISH":
-        show_results()
+        show_results("LISTENING")
 
-# --- 模式 B: 克漏字測驗 (Cloze) ---
+# --- 模式 B: 克漏字測驗 ---
 def run_cloze_mode():
     col_back, col_info = st.columns([1, 2])
     with col_back:
@@ -362,7 +399,8 @@ def run_cloze_mode():
             safe_rerun()
     with col_info:
         if st.session_state.game_state == "PLAYING":
-            st.caption(f"📊 得分: {st.session_state.score} | 進度: {st.session_state.current_idx + 1}/20")
+            status_text = "🔄 錯題重練" if st.session_state.is_review else f"進度: {st.session_state.current_idx + 1}/{len(st.session_state.questions)}"
+            st.caption(f"📊 得分: {st.session_state.score} | {status_text}")
 
     if st.session_state.game_state == "START":
         st.header("🔤 克漏字")
@@ -378,6 +416,7 @@ def run_cloze_mode():
             st.session_state.wrong_list = []
             st.session_state.ans_checked = False
             st.session_state.user_input = ""
+            st.session_state.is_review = False # 正常模式
             safe_rerun()
 
     elif st.session_state.game_state == "PLAYING":
@@ -391,9 +430,10 @@ def run_cloze_mode():
         
         c1, c2 = st.columns([2, 1])
         with c1:
-            st.markdown(f"<h2 style='text-align: center; letter-spacing: 2px;'>{st.session_state[cloze_key]}</h2>", unsafe_allow_html=True)
+            st.markdown(f"<div class='cloze-big-word'>{st.session_state[cloze_key]}</div>", unsafe_allow_html=True)
         with c2:
-            play_audio_js(q['en'], key_suffix=f"cloze_{st.session_state.current_idx}", button_text="🔊 聽提示")
+            st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+            render_audio_controls(q['en'], key_suffix=f"cloze_{st.session_state.current_idx}")
 
         with st.form(key=f"cloze_form_{st.session_state.current_idx}"):
             user_ans = st.text_input("請輸入完整單字：", value="", disabled=st.session_state.ans_checked)
@@ -404,7 +444,7 @@ def run_cloze_mode():
             st.session_state.user_input = user_ans
             
             is_correct = user_ans.strip().lower() == q['en'].lower()
-            update_stats("CLOZE", is_correct) # 更新統計
+            update_stats("CLOZE", is_correct)
             
             if is_correct:
                 st.session_state.score += 5
@@ -423,22 +463,19 @@ def run_cloze_mode():
                 st.error(f"❌ 錯誤！正確答案是：{q['en']}")
             
             if st.button("下一題 ➡", use_container_width=True, type="primary"):
-                # 清除舊的暫存
                 old_cloze_key = f"cloze_word_{st.session_state.current_idx}"
                 if old_cloze_key in st.session_state: del st.session_state[old_cloze_key]
                 next_question()
 
     elif st.session_state.game_state == "FINISH":
-        show_results()
+        show_results("CLOZE")
 
-# 共用邏輯函數
+# 共用邏輯
 def check_answer(selected, question, correct_val, mode):
     st.session_state.selected_opt = selected
     st.session_state.ans_checked = True
-    
     is_correct = (selected == correct_val)
-    update_stats(mode, is_correct) # 更新統計
-    
+    update_stats(mode, is_correct)
     if is_correct:
         st.session_state.score += 5
         st.session_state.session_correct_count += 1
@@ -455,13 +492,30 @@ def next_question():
         st.session_state.game_state = "FINISH"
     safe_rerun()
 
-def show_results():
+def show_results(mode):
     st.balloons()
-    st.header("🏆 測驗結束")
+    title = "🏆 測驗結束" if not st.session_state.is_review else "📝 複習完成"
+    st.header(title)
     st.metric("本輪得分", f"{st.session_state.score} 分")
     
-    if st.session_state.wrong_list:
-        st.subheader("📖 錯題複習")
+    # 只有克漏字模式且有錯題時，顯示「重做錯題」按鈕
+    # 聽力模式如果想簡單一點，可以保持原樣，或者也加上重做邏輯(這裡主要針對克漏字)
+    if mode == "CLOZE" and st.session_state.wrong_list:
+        st.error(f"有 {len(st.session_state.wrong_list)} 題答錯，要重新練習嗎？")
+        if st.button("✍️ 重做錯題 (不計入統計)", use_container_width=True, type="primary"):
+            st.session_state.questions = st.session_state.wrong_list
+            st.session_state.wrong_list = [] # 清空錯題列表，準備新一輪
+            st.session_state.game_state = "PLAYING"
+            st.session_state.current_idx = 0
+            st.session_state.score = 0
+            st.session_state.session_correct_count = 0
+            st.session_state.is_review = True # 設定為複習模式
+            st.session_state.ans_checked = False
+            st.session_state.user_input = ""
+            safe_rerun()
+    elif st.session_state.wrong_list:
+        # 聽力模式的簡單複習列表 (或克漏字複習結束後)
+        st.subheader("📖 錯題列表")
         for i, w in enumerate(st.session_state.wrong_list):
             st.write("---")
             c1, c2 = st.columns([3, 1])
@@ -469,7 +523,7 @@ def show_results():
                 st.write(f"**{w['en']}**")
                 st.write(w['zh'])
             with c2:
-                play_audio_js(w['en'], key_suffix=f"rev_{i}", button_text="🔊")
+                render_audio_controls(w['en'], key_suffix=f"rev_{i}")
     else:
         st.success("全對！太棒了！")
 
@@ -479,32 +533,20 @@ def show_results():
         st.session_state.game_state = "START"
         safe_rerun()
 
-# --- 主程式進入點 ---
+# --- 主程式 ---
 if st.session_state.mode == "MAIN_MENU":
     st.title("🎓 小學英檢單字王")
     
-    # --- 統計數據顯示區域 ---
     st.subheader("📊 學習記錄")
-    
     if not st.session_state.history:
         st.caption("目前還沒有練習記錄，快開始挑戰吧！")
     else:
-        # 將字典反轉，讓最新的日期顯示在最上面
         sorted_dates = sorted(st.session_state.history.keys(), reverse=True)
-        
         for date_str in sorted_dates:
             data = st.session_state.history[date_str]
+            lis_acc = int((data['list_correct']/data['list_total'])*100) if data['list_total']>0 else 0
+            cloze_acc = int((data['cloze_correct']/data['cloze_total'])*100) if data['cloze_total']>0 else 0
             
-            # 計算準確率
-            lis_acc = 0
-            if data['list_total'] > 0:
-                lis_acc = int((data['list_correct'] / data['list_total']) * 100)
-                
-            cloze_acc = 0
-            if data['cloze_total'] > 0:
-                cloze_acc = int((data['cloze_correct'] / data['cloze_total']) * 100)
-            
-            # 顯示卡片
             with st.container():
                 st.markdown(f"""
                 <div class="stat-box">
@@ -522,7 +564,6 @@ if st.session_state.mode == "MAIN_MENU":
     
     st.write("---")
     st.write("請選擇測驗模式：")
-    
     col1, col2 = st.columns(2)
     with col1:
         if st.button("🎧 聽力測驗\n(聽英選中)", use_container_width=True):
