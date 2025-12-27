@@ -4,6 +4,7 @@ from gtts import gTTS
 import io
 import base64
 import streamlit.components.v1 as components
+from datetime import datetime
 
 # ---------------------------------------------------------
 # 1. 完整單字資料庫 (整合 1200 單字)
@@ -200,9 +201,10 @@ def create_cloze_word(word):
 # ---------------------------------------------------------
 if 'mode' not in st.session_state: st.session_state.mode = "MAIN_MENU"
 
-# 累計歷史數據
-if 'total_correct' not in st.session_state: st.session_state.total_correct = 0
-if 'total_questions' not in st.session_state: st.session_state.total_questions = 0
+# --- 歷史數據 (Dictionary) ---
+# 格式: { "YYYY-MM-DD": { "list_correct": 0, "list_total": 0, "cloze_correct": 0, "cloze_total": 0 } }
+if 'history' not in st.session_state:
+    st.session_state.history = {}
 
 if 'game_state' not in st.session_state:
     st.session_state.update({
@@ -210,11 +212,12 @@ if 'game_state' not in st.session_state:
         'score': 0, 'current_idx': 0, 'questions': [], 
         'wrong_list': [], 'options': [], 
         'ans_checked': False, 'selected_opt': None,
-        'user_input': "" # 克漏字輸入暫存
+        'user_input': "",
+        'session_correct_count': 0 # 本輪答對題數
     })
 
 # ---------------------------------------------------------
-# 4. 版面調整 CSS (解決左上角遮擋與按鈕樣式)
+# 4. 版面調整 CSS
 # ---------------------------------------------------------
 st.markdown("""
 <style>
@@ -223,13 +226,11 @@ st.markdown("""
         padding-top: 4rem; 
         padding-bottom: 2rem; 
     }
-    /* 調整標題大小 */
     h1 { font-size: 1.5rem !important; margin-bottom: 0.5rem !important; }
     h2 { font-size: 1.2rem !important; }
-    /* 調整按鈕高度 */
     .stButton button { width: 100%; height: 50px; font-size: 18px; margin-top: 0px; }
-    /* 減少垂直間距 */
     div[data-testid="stVerticalBlock"] > div { gap: 0.5rem; }
+    
     /* 大字體樣式 */
     .big-word {
         font-size: 3rem;
@@ -238,6 +239,18 @@ st.markdown("""
         text-align: center;
         margin-bottom: 10px;
     }
+    
+    /* 統計表格樣式 */
+    .stat-box {
+        padding: 10px;
+        background-color: #f0f2f6;
+        border-radius: 10px;
+        margin-bottom: 10px;
+    }
+    .stat-date { font-weight: bold; color: #333; }
+    .stat-row { display: flex; justify-content: space-between; margin-top: 5px; }
+    .stat-label { color: #555; }
+    .stat-val { font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -245,11 +258,31 @@ st.markdown("""
 # 5. 主程式邏輯
 # ---------------------------------------------------------
 
+# --- 更新統計資料函數 ---
+def update_stats(mode, is_correct):
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    
+    # 如果今天還沒有資料，初始化
+    if today_str not in st.session_state.history:
+        st.session_state.history[today_str] = {
+            "list_correct": 0, "list_total": 0,
+            "cloze_correct": 0, "cloze_total": 0
+        }
+    
+    # 根據模式更新
+    if mode == "LISTENING":
+        st.session_state.history[today_str]["list_total"] += 1
+        if is_correct:
+            st.session_state.history[today_str]["list_correct"] += 1
+    elif mode == "CLOZE":
+        st.session_state.history[today_str]["cloze_total"] += 1
+        if is_correct:
+            st.session_state.history[today_str]["cloze_correct"] += 1
+
 # --- 模式 A: 聽力測驗 (Listening) ---
 def run_listening_mode():
     col_back, col_info = st.columns([1, 2])
     with col_back:
-        # 回主選單按鈕
         if st.button("⬅ 回主選單", key="back_btn_lis"):
             st.session_state.mode = "MAIN_MENU"
             st.session_state.game_state = "START"
@@ -268,6 +301,7 @@ def run_listening_mode():
             st.session_state.game_state = "PLAYING"
             st.session_state.current_idx = 0
             st.session_state.score = 0
+            st.session_state.session_correct_count = 0
             st.session_state.wrong_list = []
             st.session_state.options = []
             st.session_state.ans_checked = False
@@ -277,13 +311,10 @@ def run_listening_mode():
     elif st.session_state.game_state == "PLAYING":
         q = st.session_state.questions[st.session_state.current_idx]
         
-        # 題目區：單字(放大)與發音並排
-        # 調整 column 比例讓按鈕不被切到
         c1, c2 = st.columns([2, 1])
         with c1:
             st.markdown(f"<div class='big-word'>{q['en']}</div>", unsafe_allow_html=True)
         with c2:
-            # 使用空容器調整垂直位置，讓按鈕對齊文字中心
             st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
             play_audio_js(q['en'], key_suffix=f"lis_{st.session_state.current_idx}", button_text="🔊")
 
@@ -294,21 +325,20 @@ def run_listening_mode():
             random.shuffle(opts)
             st.session_state.options = opts
 
-        # 選項區 (2x2)
+        # 選項區
         opts = st.session_state.options
         for i in range(0, 4, 2):
             col_a, col_b = st.columns(2)
             with col_a:
                 opt_text = opts[i]
                 if st.button(opt_text, key=f"opt_{i}", use_container_width=True, disabled=st.session_state.ans_checked):
-                    check_answer(opt_text, q, q['zh'])
+                    check_answer(opt_text, q, q['zh'], "LISTENING")
             with col_b:
                 if i+1 < 4:
                     opt_text = opts[i+1]
                     if st.button(opt_text, key=f"opt_{i+1}", use_container_width=True, disabled=st.session_state.ans_checked):
-                        check_answer(opt_text, q, q['zh'])
+                        check_answer(opt_text, q, q['zh'], "LISTENING")
 
-        # 結果回饋區
         if st.session_state.ans_checked:
             st.write("---")
             if st.session_state.selected_opt == q['zh']:
@@ -322,7 +352,7 @@ def run_listening_mode():
     elif st.session_state.game_state == "FINISH":
         show_results()
 
-# --- 模式 B: 克漏字測驗 (Cloze - 填字版) ---
+# --- 模式 B: 克漏字測驗 (Cloze) ---
 def run_cloze_mode():
     col_back, col_info = st.columns([1, 2])
     with col_back:
@@ -344,6 +374,7 @@ def run_cloze_mode():
             st.session_state.game_state = "PLAYING"
             st.session_state.current_idx = 0
             st.session_state.score = 0
+            st.session_state.session_correct_count = 0
             st.session_state.wrong_list = []
             st.session_state.ans_checked = False
             st.session_state.user_input = ""
@@ -352,12 +383,10 @@ def run_cloze_mode():
     elif st.session_state.game_state == "PLAYING":
         q = st.session_state.questions[st.session_state.current_idx]
         
-        # 產生挖空單字
         cloze_key = f"cloze_word_{st.session_state.current_idx}"
         if cloze_key not in st.session_state:
             st.session_state[cloze_key] = create_cloze_word(q['en'])
 
-        # 顯示題目與發音按鈕 (並排)
         st.caption(f"中文提示：{q['zh']}")
         
         c1, c2 = st.columns([2, 1])
@@ -366,29 +395,26 @@ def run_cloze_mode():
         with c2:
             play_audio_js(q['en'], key_suffix=f"cloze_{st.session_state.current_idx}", button_text="🔊 聽提示")
 
-        # 使用 form 來處理輸入
         with st.form(key=f"cloze_form_{st.session_state.current_idx}"):
-            # 輸入框
             user_ans = st.text_input("請輸入完整單字：", value="", disabled=st.session_state.ans_checked)
-            # 提交按鈕
             submit_btn = st.form_submit_button("提交答案", disabled=st.session_state.ans_checked)
         
-        # 處理提交邏輯
         if submit_btn and not st.session_state.ans_checked:
             st.session_state.ans_checked = True
             st.session_state.user_input = user_ans
-            st.session_state.total_questions += 1
             
-            if user_ans.strip().lower() == q['en'].lower():
+            is_correct = user_ans.strip().lower() == q['en'].lower()
+            update_stats("CLOZE", is_correct) # 更新統計
+            
+            if is_correct:
                 st.session_state.score += 5
-                st.session_state.total_correct += 1
+                st.session_state.session_correct_count += 1
                 st.session_state.is_correct = True
             else:
                 st.session_state.wrong_list.append(q)
                 st.session_state.is_correct = False
             safe_rerun()
 
-        # 結果回饋區
         if st.session_state.ans_checked:
             st.write("---")
             if st.session_state.is_correct:
@@ -406,13 +432,16 @@ def run_cloze_mode():
         show_results()
 
 # 共用邏輯函數
-def check_answer(selected, question, correct_val):
+def check_answer(selected, question, correct_val, mode):
     st.session_state.selected_opt = selected
     st.session_state.ans_checked = True
-    st.session_state.total_questions += 1
-    if selected == correct_val:
+    
+    is_correct = (selected == correct_val)
+    update_stats(mode, is_correct) # 更新統計
+    
+    if is_correct:
         st.session_state.score += 5
-        st.session_state.total_correct += 1
+        st.session_state.session_correct_count += 1
     else:
         st.session_state.wrong_list.append(question)
     safe_rerun()
@@ -421,7 +450,7 @@ def next_question():
     st.session_state.current_idx += 1
     st.session_state.ans_checked = False
     st.session_state.options = []
-    st.session_state.user_input = "" # 清空輸入框
+    st.session_state.user_input = ""
     if st.session_state.current_idx >= len(st.session_state.questions):
         st.session_state.game_state = "FINISH"
     safe_rerun()
@@ -454,10 +483,45 @@ def show_results():
 if st.session_state.mode == "MAIN_MENU":
     st.title("🎓 小學英檢單字王")
     
-    # 統計數據顯示
-    if st.session_state.total_questions > 0:
-        acc = int((st.session_state.total_correct / st.session_state.total_questions) * 100)
-        st.info(f"📊 累積練習：{st.session_state.total_questions} 題 | 總答對率：{acc}%")
+    # --- 統計數據顯示區域 ---
+    st.subheader("📊 學習記錄")
+    
+    if not st.session_state.history:
+        st.caption("目前還沒有練習記錄，快開始挑戰吧！")
+    else:
+        # 將字典反轉，讓最新的日期顯示在最上面
+        sorted_dates = sorted(st.session_state.history.keys(), reverse=True)
+        
+        for date_str in sorted_dates:
+            data = st.session_state.history[date_str]
+            
+            # 計算準確率
+            lis_acc = 0
+            if data['list_total'] > 0:
+                lis_acc = int((data['list_correct'] / data['list_total']) * 100)
+                
+            cloze_acc = 0
+            if data['cloze_total'] > 0:
+                cloze_acc = int((data['cloze_correct'] / data['cloze_total']) * 100)
+            
+            # 顯示卡片
+            with st.container():
+                st.markdown(f"""
+                <div class="stat-box">
+                    <div class="stat-date">📅 {date_str}</div>
+                    <div class="stat-row">
+                        <span>🎧 聽力測驗</span>
+                        <span class="stat-val">{data['list_correct']}/{data['list_total']} 題 ({lis_acc}%)</span>
+                    </div>
+                    <div class="stat-row">
+                        <span>🔤 克漏字</span>
+                        <span class="stat-val">{data['cloze_correct']}/{data['cloze_total']} 題 ({cloze_acc}%)</span>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+    
+    st.write("---")
+    st.write("請選擇測驗模式：")
     
     col1, col2 = st.columns(2)
     with col1:
@@ -476,5 +540,6 @@ elif st.session_state.mode == "LISTENING":
 
 elif st.session_state.mode == "CLOZE":
     run_cloze_mode()
+
 
 
